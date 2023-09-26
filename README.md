@@ -6,4 +6,4 @@ Este repositorio contiene los datos y el análisis de mi tesis de pregrado sobre
 
 La carpeta `data` contiene archivos con los datos, la carpeta `src` cuenta con el código usado para el manejo y análisis de los datos.
 
-La carpeta `docs` contiene los documentos del trabajo, tales como el proyecto de tesis, la tesis final, informes, figuras, anexos, etc.
+La carpeta `doc` contiene los documentos del trabajo, tales como el proyecto de tesis, la tesis final, informes, figuras, anexos, etc.

@@ -1,0 +1,67 @@
+---
+title: "Análisis"
+author: "Daniel Medina"
+format: html
+editor: visual
+---
+
+```{r}
+library(readr)
+library(dplyr)
+dat <- suppressMessages(read_csv("data/full_data.csv"))
+head(dat)
+```
+
+## Estadísticas descriptivas generales
+
+Decidí trabajar principalemente con datos de los postulantes por dos motivos:
+
+1.  Se tienen datos de postulantes desde el 2013, a diferencia de los ingresantes, que se tienen datos desde 2016
+2.  Los postulantes muestran la intención de especialidad, reflejando la preferencia de los candidatos.
+
+```{r}
+i <- is.na(dat$universidad_postulantes) & is.na(dat$especialidad_postulantes)
+postulantes <- dat[!i, ]
+
+# Número total de postulantes
+nrow(postulantes)
+
+# Número de postulantes con género asignado
+i <- is.na(postulantes$gender)
+sum(!i)
+
+# Porcentaje de postulantes con género asignado
+(1 - mean(i)) * 100
+
+# Numero de hombres ...
+x <- postulantes$gender == 0
+x <- na.omit(x)
+sum(x)
+
+# y de mujeres
+x <- postulantes$gender == 1
+x <- na.omit(x)
+sum(x)
+
+# Número de postulantes a cada especialidad ...
+postulantes |>
+  group_by(especialidad_postulantes) |>
+  count()
+
+
+# y su distribución de género
+i <- is.na(postulantes$gender)
+postulantes[!i, ] |>
+  group_by(especialidad_postulantes, gender) |>
+  count()
+```
+
+## Análisis sobre las tendencias de género
+
+¿La proporción de mujeres y hombres ha cambiado? (en la totalidad vs. en subgrupos, diferentes especialdiades)
+
+```{r}
+
+```
+
+## Gráficas y tablas
