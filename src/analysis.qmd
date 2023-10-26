@@ -6,9 +6,10 @@ editor: visual
 ---
 
 ```{r}
+library(here)
 library(readr)
 library(dplyr)
-dat <- suppressMessages(read_csv("data/full_data.csv"))
+dat <- suppressMessages(read_csv(here("data/full_data.csv")))
 head(dat)
 ```
 
@@ -58,10 +59,18 @@ postulantes[!i, ] |>
 
 ## Análisis sobre las tendencias de género
 
-¿La proporción de mujeres y hombres ha cambiado? (en la totalidad vs. en subgrupos, diferentes especialdiades)
+¿La proporción de mujeres y hombres ha cambiado? (en la totalidad vs. en subgrupos, diferentes especialidades)
 
 ```{r}
 
 ```
 
+Nota: para esto el plan de análisis es realizar una regresión logística en la que la variable independiente sea el género y las independientes sean el año (tiempo) y la especialidad. Con esto se podría crear el modelo y analizar la diferencia entre la tendencia global y la tendencia en cada una de las especialidades, quizá una opción sea determinar la interacción o algún otro valor estadístico.
+
+Otras opciones más simples serían realizar chi-cuadrado entre el número de hombres y mujeres en los distintos años y/o especialidades.
+
 ## Gráficas y tablas
+
+-   Descripción de la población del estudio
+
+-   Tendencias de género
