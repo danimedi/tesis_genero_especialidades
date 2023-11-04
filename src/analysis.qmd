@@ -9,8 +9,8 @@ editor: visual
 library(here)
 library(readr)
 library(dplyr)
+library(ggplot2)
 dat <- suppressMessages(read_csv(here("data/full_data.csv")))
-head(dat)
 ```
 
 ## Estadísticas descriptivas generales
@@ -62,7 +62,32 @@ postulantes[!i, ] |>
 ¿La proporción de mujeres y hombres ha cambiado? (en la totalidad vs. en subgrupos, diferentes especialidades)
 
 ```{r}
+i <- is.na(dat$gender) | is.na(dat$especialidad_postulantes)
+dat_not_empty <- dat[!i, ]
+x <- dat_not_empty %>%
+  group_by(year, especialidad_postulantes) %>%
+  summarize(women = mean(gender))
+```
 
+```{r}
+for (specialty in unique(x$especialidad_postulantes)) {
+  i <- x$especialidad_postulantes == specialty
+  n <- sum(dat_not_empty$especialidad_postulantes == specialty)
+  p <- ggplot(x[i, ], aes(year, women)) +
+    geom_line() +
+    ggtitle(specialty) +
+    labs(subtitle = paste0("Número de personas: ", n))
+  print(p)
+}
+```
+
+Posibilidad de crear un modelo estadístico???
+
+```{r}
+i <- is.na(dat$gender) | is.na(dat$especialidad_postulantes)
+dat <- dat[!i, ]
+dat$especialidad_postulantes <- as.factor(dat$especialidad_postulantes)
+model <- glm(gender ~ year + especialidad_postulantes, data = dat, family = "binomial")
 ```
 
 Nota: para esto el plan de análisis es realizar una regresión logística en la que la variable independiente sea el género y las independientes sean el año (tiempo) y la especialidad. Con esto se podría crear el modelo y analizar la diferencia entre la tendencia global y la tendencia en cada una de las especialidades, quizá una opción sea determinar la interacción o algún otro valor estadístico.
