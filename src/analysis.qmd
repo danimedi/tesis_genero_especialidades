@@ -81,6 +81,114 @@ for (specialty in unique(x$especialidad_postulantes)) {
 }
 ```
 
+Ahora, veremos cómo se comparan las especialidades médicas con las quirúrgicas.
+
+```{r}
+especialidades <- unique(dat$especialidad_postulantes)
+i <- c(2, 3, 11, 17, 33, 37, 47, 57, 63, 67, 75, 77, 79, 81, 83, 12, 14, 16, 22, 24, 36, 46, 56, 58, 64, 74, 76, 78, 80)
+quirurgicas <- especialidades[i]
+
+x <- ifelse(dat$especialidad_postulantes %in% quirurgicas, TRUE, FALSE)
+dat$especialidad_quirurgica <- x
+
+# Graph
+i <- is.na(dat$gender) | is.na(dat$especialidad_postulantes)
+dat_not_empty <- dat[!i, ]
+x <- dat_not_empty %>%
+  group_by(year, especialidad_quirurgica) %>%
+  summarize(women = mean(gender))
+
+ggplot(x, aes(year, women)) +
+  geom_line() +
+  facet_wrap(
+    vars(especialidad_quirurgica),
+    labeller = labeller(especialidad_quirurgica = c(
+      "FALSE" = "Especialidades clínicas",
+      "TRUE" = "Especialidades quirúrgicas"
+    ))
+  ) +
+  labs(x = "Año", y = "Proporción de mujeres")
+```
+
+You can see that there is a wide difference between the gender distribution of surgical and clinical specialties.
+
+Now, we have this graph that is the global trend:
+
+```{r}
+x <- dat_not_empty %>%
+  group_by(year) %>%
+  summarize(women = mean(gender))
+ggplot(x, aes(year, women)) +
+  geom_line() +
+  labs(x = "Año", y = "Proporción de mujeres")
+```
+
+So, we can create a line that is the model for the trend.
+
+```{r}
+model <- glm(gender ~ year, data = dat_not_empty, family = "binomial")
+summary(model)
+
+ggplot(x, aes(year, women)) +
+  geom_line() +
+  geom_smooth(method = "glm", method.args = list(family = "binomial"), se = FALSE, color = "blue") +
+  labs(x = "Año", y = "Proporción de mujeres")
+```
+
+Here we have our line!!!
+
+Now, I want to know if the coefficient, aka the "trend" is the same for the other specialties or for the surgical vs. clinical specialties. Let's begin with the surgical vs. clinical because they have more data (aka more reliability).
+
+Let's model the relationship between gender and years only.
+
+```{r}
+model_1 <- glm(gender ~ year, data = dat_not_empty, family = "binomial")
+summary(model_1)
+exp(coef(model_1))
+exp(confint(model_1))
+```
+
+Now create a model including another binomial variable for surgical vs. non-surgical specialty.
+
+```{r}
+model_2 <- glm(gender ~ year + especialidad_quirurgica, data = dat_not_empty, family = "binomial")
+summary(model_2)
+
+exp(coef(model_2))
+exp(confint(model_2))
+```
+
+Let's try my brother's suggestion and create a model comparing each specialty to the rest.
+
+```{r}
+specialties <- unique(dat_not_empty$especialidad_postulantes)
+
+res_models <- vector(mode = "list", length = length(specialties))
+for (i in seq_along(specialties)) {
+  model_x <- glm(
+    gender ~ ifelse(especialidad_postulantes == specialties[[i]], 1, 0) + year,
+    data = dat_not_empty,
+    family = "binomial"
+  )
+  res_models[[i]] <- model_x
+}
+
+summary(res_models[[1]])
+exp(coef(res_models[[1]]))
+exp(confint(res_models[[1]]))
+```
+
+I want to know if there is an effect modification of the specialty on the effect of the time (years) on the gender. According to MarinStats lectures there are two options: stratifying and modelling.
+
+...
+
+Here is another try, suggested by my brother:
+
+```{r}
+model_3 <- glm(gender ~ year + especialidad_quirurgica, data = dat_not_empty, family = "binomial")
+summary(model_2)
+```
+
 Posibilidad de crear un modelo estadístico???
 
 ```{r}
