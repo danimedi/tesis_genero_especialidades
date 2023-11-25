@@ -21,11 +21,8 @@ Decidí trabajar principalemente con datos de los postulantes por dos motivos:
 2.  Los postulantes muestran la intención de especialidad, reflejando la preferencia de los candidatos.
 
 ```{r}
-i <- is.na(dat$universidad_postulantes) & is.na(dat$especialidad_postulantes)
-postulantes <- dat[!i, ]
-
 # Número total de postulantes
-nrow(postulantes)
+nrow(dat)
 
 # Número de postulantes con género asignado
 i <- is.na(postulantes$gender)
@@ -33,26 +30,32 @@ sum(!i)
 
 # Porcentaje de postulantes con género asignado
 (1 - mean(i)) * 100
+# ... y en cada año
+for (year in unique(dat$year)) {
+  i <- dat$year == year
+  res <- mean(dat[i, "gender", drop = TRUE], na.rm = TRUE)
+  print(c(year, res))
+}
 
 # Numero de hombres ...
-x <- postulantes$gender == 0
+x <- dat$gender == 0
 x <- na.omit(x)
 sum(x)
 
 # y de mujeres
-x <- postulantes$gender == 1
+x <- dat$gender == 1
 x <- na.omit(x)
 sum(x)
 
 # Número de postulantes a cada especialidad ...
-postulantes |>
+dat |>
   group_by(especialidad_postulantes) |>
   count()
 
 
 # y su distribución de género
-i <- is.na(postulantes$gender)
-postulantes[!i, ] |>
+i <- is.na(dat$gender)
+dat[!i, ] |>
   group_by(especialidad_postulantes, gender) |>
   count()
 ```
@@ -62,9 +65,8 @@ postulantes[!i, ] |>
 ¿La proporción de mujeres y hombres ha cambiado? (en la totalidad vs. en subgrupos, diferentes especialidades)
 
 ```{r}
-i <- is.na(dat$gender) | is.na(dat$especialidad_postulantes)
-dat_not_empty <- dat[!i, ]
-x <- dat_not_empty %>%
+i_no_gender <- is.na(dat$gender)
+x <- dat[!i_no_gender, ] %>%
   group_by(year, especialidad_postulantes) %>%
   summarize(women = mean(gender))
 ```
@@ -72,7 +74,7 @@ x <- dat_not_empty %>%
 ```{r}
 for (specialty in unique(x$especialidad_postulantes)) {
   i <- x$especialidad_postulantes == specialty
-  n <- sum(dat_not_empty$especialidad_postulantes == specialty)
+  n <- sum(dat[!i_no_gender, ]$especialidad_postulantes == specialty)
   p <- ggplot(x[i, ], aes(year, women)) +
     geom_line() +
     ggtitle(specialty) +
@@ -92,9 +94,7 @@ x <- ifelse(dat$especialidad_postulantes %in% quirurgicas, TRUE, FALSE)
 dat$especialidad_quirurgica <- x
 
 # Graph
-i <- is.na(dat$gender) | is.na(dat$especialidad_postulantes)
-dat_not_empty <- dat[!i, ]
-x <- dat_not_empty %>%
+x <- dat[!i_no_gender, ] %>%
   group_by(year, especialidad_quirurgica) %>%
   summarize(women = mean(gender))
 
@@ -115,7 +115,7 @@ You can see that there is a wide difference between the gender distribution of s
 Now, we have this graph that is the global trend:
 
 ```{r}
-x <- dat_not_empty %>%
+x <- dat[!i_no_gender, ] %>%
   group_by(year) %>%
   summarize(women = mean(gender))
 ggplot(x, aes(year, women)) +
