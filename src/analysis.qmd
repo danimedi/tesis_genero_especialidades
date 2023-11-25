@@ -21,11 +21,8 @@ Decidí trabajar principalemente con datos de los postulantes por dos motivos:
 2.  Los postulantes muestran la intención de especialidad, reflejando la preferencia de los candidatos.
 
 ```{r}
-i <- is.na(dat$universidad_postulantes) & is.na(dat$especialidad_postulantes)
-postulantes <- dat[!i, ]
-
 # Número total de postulantes
-nrow(postulantes)
+nrow(dat)
 
 # Número de postulantes con género asignado
 i <- is.na(postulantes$gender)
@@ -33,26 +30,32 @@ sum(!i)
 
 # Porcentaje de postulantes con género asignado
 (1 - mean(i)) * 100
+# ... y en cada año
+for (year in unique(dat$year)) {
+  i <- dat$year == year
+  res <- mean(dat[i, "gender", drop = TRUE], na.rm = TRUE)
+  print(c(year, res))
+}
 
 # Numero de hombres ...
-x <- postulantes$gender == 0
+x <- dat$gender == 0
 x <- na.omit(x)
 sum(x)
 
 # y de mujeres
-x <- postulantes$gender == 1
+x <- dat$gender == 1
 x <- na.omit(x)
 sum(x)
 
 # Número de postulantes a cada especialidad ...
-postulantes |>
+dat |>
   group_by(especialidad_postulantes) |>
   count()
 
 
 # y su distribución de género
-i <- is.na(postulantes$gender)
-postulantes[!i, ] |>
+i <- is.na(dat$gender)
+dat[!i, ] |>
   group_by(especialidad_postulantes, gender) |>
   count()
 ```
@@ -62,9 +65,8 @@ postulantes[!i, ] |>
 ¿La proporción de mujeres y hombres ha cambiado? (en la totalidad vs. en subgrupos, diferentes especialidades)
 
 ```{r}
-i <- is.na(dat$gender) | is.na(dat$especialidad_postulantes)
-dat_not_empty <- dat[!i, ]
-x <- dat_not_empty %>%
+i_no_gender <- is.na(dat$gender)
+x <- dat[!i_no_gender, ] %>%
   group_by(year, especialidad_postulantes) %>%
   summarize(women = mean(gender))
 ```
@@ -72,7 +74,7 @@ x <- dat_not_empty %>%
 ```{r}
 for (specialty in unique(x$especialidad_postulantes)) {
   i <- x$especialidad_postulantes == specialty
-  n <- sum(dat_not_empty$especialidad_postulantes == specialty)
+  n <- sum(dat[!i_no_gender, ]$especialidad_postulantes == specialty)
   p <- ggplot(x[i, ], aes(year, women)) +
     geom_line() +
     ggtitle(specialty) +
@@ -92,9 +94,7 @@ x <- ifelse(dat$especialidad_postulantes %in% quirurgicas, TRUE, FALSE)
 dat$especialidad_quirurgica <- x
 
 # Graph
-i <- is.na(dat$gender) | is.na(dat$especialidad_postulantes)
-dat_not_empty <- dat[!i, ]
-x <- dat_not_empty %>%
+x <- dat[!i_no_gender, ] %>%
   group_by(year, especialidad_quirurgica) %>%
   summarize(women = mean(gender))
 
@@ -115,7 +115,7 @@ You can see that there is a wide difference between the gender distribution of s
 Now, we have this graph that is the global trend:
 
 ```{r}
-x <- dat_not_empty %>%
+x <- dat[!i_no_gender, ] %>%
   group_by(year) %>%
   summarize(women = mean(gender))
 ggplot(x, aes(year, women)) +
@@ -126,7 +126,7 @@ ggplot(x, aes(year, women)) +
 So, we can create a line that is the model for the trend.
 
 ```{r}
-model <- glm(gender ~ year, data = dat_not_empty, family = "binomial")
+model <- glm(gender ~ year, data = dat[!i_no_gender, ], family = "binomial")
 summary(model)
 
 ggplot(x, aes(year, women)) +
@@ -142,7 +142,7 @@ Now, I want to know if the coefficient, aka the "trend" is the same for the othe
 Let's model the relationship between gender and years only.
 
 ```{r}
-model_1 <- glm(gender ~ year, data = dat_not_empty, family = "binomial")
+model_1 <- glm(gender ~ year, data = dat[!i_no_gender, ], family = "binomial")
 summary(model_1)
 exp(coef(model_1))
 exp(confint(model_1))
@@ -151,7 +151,7 @@ exp(confint(model_1))
 Now create a model including another binomial variable for surgical vs. non-surgical specialty.
 
 ```{r}
-model_2 <- glm(gender ~ year + especialidad_quirurgica, data = dat_not_empty, family = "binomial")
+model_2 <- glm(gender ~ year + especialidad_quirurgica, data = dat[!i_no_gender, ], family = "binomial")
 summary(model_2)
 
 exp(coef(model_2))
@@ -161,13 +161,13 @@ exp(confint(model_2))
 Let's try my brother's suggestion and create a model comparing each specialty to the rest.
 
 ```{r}
-specialties <- unique(dat_not_empty$especialidad_postulantes)
+specialties <- unique(dat[!i_no_gender, ]$especialidad_postulantes)
 
 res_models <- vector(mode = "list", length = length(specialties))
 for (i in seq_along(specialties)) {
   model_x <- glm(
     gender ~ ifelse(especialidad_postulantes == specialties[[i]], 1, 0) + year,
-    data = dat_not_empty,
+    data = dat[!i_no_gender, ],
     family = "binomial"
   )
   res_models[[i]] <- model_x
@@ -185,7 +185,7 @@ I want to know if there is an effect modification of the specialty on the effect
 Here is another try, suggested by my brother:
 
 ```{r}
-model_3 <- glm(gender ~ year + especialidad_quirurgica, data = dat_not_empty, family = "binomial")
+model_3 <- glm(gender ~ year + especialidad_quirurgica, data = dat[!i_no_gender, ], family = "binomial")
 summary(model_2)
 ```
 
