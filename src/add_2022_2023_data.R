@@ -68,7 +68,7 @@ dat_2022_2023$gender <- gender
 
 # Add the 2022, 2023 data to the old data set
 
-full_old_data <- read_csv("data/2013-2021_data_base.csv")
+full_old_data <- read_csv("data/2013-2021_data_base_clean.csv")
 new_names <- c(
   "year", "gender", "universidad_postulantes", "universidad_ingresantes",
   "especialidad_postulantes", "especialidad_ingresantes", "ingreso"
