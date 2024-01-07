@@ -24,19 +24,58 @@ Decidí trabajar principalemente con datos de los postulantes por dos motivos:
 # Número total de postulantes
 nrow(dat)
 
+# ... por año
+years <- unique(dat$year)
+res <- vector("double", length(years))
+for (k in seq_along(years)) {
+  i <- dat$year == years[k]
+  res[[k]] <- nrow(dat[i, ])
+}
+data.frame(
+  year = years,
+  n = res
+)
+```
+
+```{r}
 # Número de postulantes con género asignado
-i <- is.na(postulantes$gender)
+i <- is.na(dat$gender)
 sum(!i)
 
-# Porcentaje de postulantes con género asignado
-(1 - mean(i)) * 100
-# ... y en cada año
-for (year in unique(dat$year)) {
-  i <- dat$year == year
-  res <- mean(dat[i, "gender", drop = TRUE], na.rm = TRUE)
-  print(c(year, res))
+# ... por año
+years <- unique(dat$year)
+res <- vector("double", length(years))
+for (k in seq_along(years)) {
+  i <- dat$year == years[[k]]
+  res[[k]] <- sum(!is.na(dat[i, "gender", drop = TRUE]))
 }
+data.frame(
+  year = years,
+  n = res
+)
+```
 
+```{r}
+# Porcentaje de postulantes con género asignado
+i <- is.na(dat$gender)
+(1 - mean(i)) * 100
+
+# ... y en cada año
+years <- unique(dat$year)
+res <- vector("double", length(years))
+for (k in seq_along(years)) {
+  i <- dat$year == years[k]
+  total <- length(dat[i, "gender", drop = TRUE])
+  with_gender <- sum(!is.na(dat[i, "gender", drop = TRUE]))
+  res[[k]] <- with_gender / total
+}
+data.frame(
+  year = years,
+  n = res
+)
+```
+
+```{r}
 # Numero de hombres ...
 x <- dat$gender == 0
 x <- na.omit(x)
@@ -47,11 +86,55 @@ x <- dat$gender == 1
 x <- na.omit(x)
 sum(x)
 
+# Porcentaje de mujeres en los distintos años
+i <- is.na(dat$gender)
+(1 - mean(i)) * 100
+
+# ... y en cada año
+years <- unique(dat$year)
+res <- vector("double", length(years))
+for (k in seq_along(years)) {
+  i <- dat$year == years[k]
+  res[[k]] <- mean(dat[i, "gender", drop = TRUE], na.rm = TRUE)
+}
+data.frame(
+  year = years,
+  n = res
+)
+```
+
+```{r}
+specialties <- unique(dat$especialidad_postulantes)
+res_n <- vector("double", length(specialties))
+res_p_women <- vector("double", length(specialties))
+for (k in seq_along(specialties)) {
+  i <- dat$especialidad_postulantes == specialties[k]
+  res_n[[k]] <- nrow(dat[i, ])
+  res_p_women[[k]] <- mean(dat[i, "gender", drop = TRUE], na.rm = TRUE)
+}
+data.frame(
+  specialty = specialties,
+  n = res_n,
+  p_women = res_p_women
+)
+
+# Detect the missing specialties
+i <- is.na(dat$especialidad_postulantes)
+dat[i, ] %>% group_by(year) %>% count()
+
+x <- dat %>% group_by(especialidad_postulantes) %>% count()
+y <- dat %>%
+  group_by(especialidad_postulantes) %>%
+  summarize(p_women = mean(gender, na.rm = TRUE))
+left_join(x, y, by = join_by(especialidad_postulantes))
+```
+
+
+```{r}
 # Número de postulantes a cada especialidad ...
 dat |>
   group_by(especialidad_postulantes) |>
   count()
-
 
 # y su distribución de género
 i <- is.na(dat$gender)
