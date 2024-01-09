@@ -16,13 +16,17 @@ Luego, se asigno el género con el código en `assign_gender.R`.
 
 Finalmente, se juntó toda la información en una sola base de datos y también se retiraron los identificadores (número identificador y nombres). Código en `unify_data.R`.
 
+Nota: antes de unificar los datos, se creó una segunda base de datos que cuenta con los datos identificados, esto con el fin de asignar el género mediante otros medios. El código de este proceso se encuentra en: `create_identified_file.R`.
+
 ### Limpieza de variables
 
 Algunos nombres de especialidades se escriben ligeramente diferente en distintos años, el código en `clean_specialties.R` soluciona este problema.
 
 También hubo problemas con algunos nombres de universidades, esto se corrigió con el código en `clean_universities.R`.
 
-Para mayor facilidad al trabajar con las especialidades quirúrgicas, se agregó una columna de especialidad quirúrgica con el código en ``
+Para mayor facilidad al trabajar con las especialidades quirúrgicas, se agregó una columna de especialidad quirúrgica con el código en `add_surgical_specialty_column.R`
+
+Además, se agregó una columna que indica si la especialidad es una especialidad realmente o una subespecialidad. Esto en el código en `add_subspecialty_column.R`.
 
 ### Análisis
 
