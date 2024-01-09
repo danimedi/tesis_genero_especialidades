@@ -161,7 +161,7 @@ res
 write.table(res, here("output/tabla_4.txt"), sep = "\t", row.names = FALSE)
 ```
 
-## Análisis sobre las tendencias de género
+## Análisis sobre las tendencias de género (gráficos)
 
 ¿La proporción de mujeres y hombres ha cambiado? (en la totalidad vs. en subgrupos, diferentes especialidades).
 
@@ -181,162 +181,174 @@ for (specialty in unique(x$especialidad)) {
   p <- ggplot(x[i, ], aes(year, women)) +
     geom_line() +
     ggtitle(specialty) +
-    labs(subtitle = paste0("Número de personas: ", n))
+    labs(subtitle = paste0("Número de personas: ", n), x = "Año", y = "Proporción de mujeres") +
+    scale_x_continuous(breaks = seq(2013, 2023, by = 1))
   ggsave(here("output", paste0("graph_1-", specialty, ".png")))
   print(p)
 }
 ```
 
-Ahora, veremos cómo se comparan las especialidades clínicas con las quirúrgicas.
+Se puede realizar gráficos similares utilizando dos curvas para ambos sexos.
 
 ```{r}
-x <- dat[!i_no_gender, ] %>%
-  group_by(year, especialidad_quirurgica) %>%
-  summarize(women = mean(genero))
-
-ggplot(x, aes(year, women)) +
-  geom_line() +
-  facet_wrap(
-    vars(especialidad_quirurgica),
-    labeller = labeller(especialidad_quirurgica = c(
-      "0" = "Especialidades clínicas",
-      "1" = "Especialidades quirúrgicas"
-    ))
-  ) +
-  labs(x = "Año", y = "Proporción de mujeres")
-ggsave(here("output", "graph_2.png"))
-```
-
-This graph is similar, but with more categories.
-
-```{r}
-x <- dat[!i_no_gender, ] %>%
-  group_by(year, especialidad_tipo) %>%
-  summarize(women = mean(genero))
-
-ggplot(x, aes(year, women)) +
-  geom_line() +
-  facet_wrap(
-    vars(especialidad_tipo)
-  ) +
-  labs(x = "Año", y = "Proporción de mujeres")
-ggsave(here("output/graph_3.png"))
-```
-
-
-You can see that there is a wide difference between the gender distribution of surgical and clinical specialties.
-
-Now, we have this graph that is the global trend:
-
-```{r}
-x <- dat[!i_no_gender, ] %>%
-  group_by(year) %>%
-  summarize(women = mean(genero))
-ggplot(x, aes(year, women)) +
-  geom_line() +
-  labs(x = "Año", y = "Proporción de mujeres")
-ggsave(here("output", "graph_4.png"))
-```
-
-So, we can create a line that is the model for the trend.
-
-```{r}
-model <- glm(genero ~ year, data = dat[!i_no_gender, ], family = "binomial")
-summary(model)
-
-ggplot(x, aes(year, women)) +
-  geom_line() +
-  geom_smooth(method = "glm", method.args = list(family = "binomial"), se = FALSE, color = "blue") +
-  labs(x = "Año", y = "Proporción de mujeres")
-```
-
-
-This graph contains the trends of the total population (global trend) and the trends of the different groups of specialties (surgical vs. clinical).
-
-```{r}
-ggplot(x) +
-  geom_line(aes(year, women)) +
-  geom_smooth(aes(year, women), method = "glm", method.args = list(family = "binomial"), se = FALSE, color = "blue") +
-  geom_line(aes(year, women, color = especialidad_quirurgica)) +
-  labs(x = "Año", y = "Proporción de mujeres")
-```
-
-
-
-
-***
-
-NOTE: THE PART BELOW THIS LINE CONTAINS ANALYSIS THAT I HAVEN'T FINISHED YET
-
-Here we have our line!!!
-
-Now, I want to know if the coefficient, aka the "trend" is the same for the other specialties or for the surgical vs. clinical specialties. Let's begin with the surgical vs. clinical because they have more data (aka more reliability).
-
-Let's model the relationship between gender and years only.
-
-```{r}
-model_1 <- glm(genero ~ year, data = dat[!i_no_gender, ], family = "binomial")
-summary(model_1)
-exp(coef(model_1))
-exp(confint(model_1))
-```
-
-Now create a model including another binomial variable for surgical vs. non-surgical specialty.
-
-```{r}
-model_2 <- glm(genero ~ year + especialidad_quirurgica, data = dat[!i_no_gender, ], family = "binomial")
-summary(model_2)
-
-exp(coef(model_2))
-exp(confint(model_2))
-```
-
-Let's try my brother's suggestion and create a model comparing each specialty to the rest.
-
-```{r}
-specialties <- unique(dat[!i_no_gender, ]$especialidad)
-
-res_models <- vector(mode = "list", length = length(specialties))
-for (i in seq_along(specialties)) {
-  model_x <- glm(
-    genero ~ ifelse(especialidad == specialties[[i]], 1, 0) + year,
-    data = dat[!i_no_gender, ],
-    family = "binomial"
+x <- dat
+x$genero_factor <- ifelse(
+  is.na(x$genero),
+  "No género asignado",
+  ifelse(
+    x$genero == 1,
+    "Femenino",
+    "Masculino"
   )
-  res_models[[i]] <- model_x
-}
+)
+x$genero_factor <- factor(x$genero_factor, levels = c("No género asignado", "Masculino", "Femenino"))
 
-summary(res_models[[1]])
-exp(coef(res_models[[1]]))
-exp(confint(res_models[[1]]))
+ggplot(x) +
+  geom_bar(aes(year, fill = genero_factor)) +
+  labs(x = "Año", y = "Número de postulantes", fill = "Género") +
+  scale_fill_manual(values = c("No género asignado" = "grey80", "Masculino" = "#619CFF", "Femenino" = "#F8766D"))
 ```
 
-I want to know if there is an effect modification of the specialty on the effect of the time (years) on the gender. According to MarinStats lectures there are two options: stratifying and modelling.
-
-...
-
-Here is another try, suggested by my brother:
+Similar pero agrupados por especialidades.
 
 ```{r}
-model_3 <- glm(genero ~ year + especialidad_quirurgica, data = dat[!i_no_gender, ], family = "binomial")
-summary(model_2)
+x <- dat
+x$especialidad_tipo <- ifelse(
+  dat$especialidad_tipo == "laboratorio_diagnostica", "De laboratorio y diagnóstica",
+  ifelse(
+    dat$especialidad_tipo == "medico_quirurgica", "Médico-quirúrgica",
+    ifelse(
+      dat$especialidad_tipo == "quirurgica", "Quirúrgica", "Clínica"
+    )
+  )
+)
+ggplot(x) +
+  geom_bar(
+    aes(year, fill = factor(especialidad_tipo, levels = c(
+      "De laboratorio y diagnóstica", "Médico-quirúrgica", "Quirúrgica", "Clínica")
+    ))
+  ) + labs(x = "Año", y = "Número de postulantes", fill = "Tipo de especialidad")
 ```
 
-Posibilidad de crear un modelo estadístico???
+Otro gráfico similar, pero con líneas.
 
 ```{r}
-# i <- is.na(dat$genero) | is.na(dat$especialidad)
-# dat <- dat[!i, ]
-# dat$especialidad <- as.factor(dat$especialidad_postulantes)
-# model <- glm(genero ~ year + especialidad_postulantes, data = dat, family = "binomial")
+# Separado en 4 subgrupos
+p_specialty_types <- x %>%
+  group_by(year, especialidad_tipo) %>%
+  summarize(p = mean(genero, na.rm = TRUE))
+
+p_years <- x %>% group_by(year) %>% summarize(p_total = mean(genero, na.rm = TRUE))
+
+p_data <- left_join(p_specialty_types, p_years, by = c("year"))
+
+ggplot(p_data) +
+  geom_line(aes(year, p_total)) +
+  geom_line(aes(year, p, color = especialidad_tipo)) +
+  scale_x_continuous(breaks = seq(2013, 2023, by = 1)) +
+  labs(x = "Año", y = "Proporción de mujeres", color = "Tipo de especialidad")
 ```
 
-Nota: para esto el plan de análisis es realizar una regresión logística en la que la variable independiente sea el género y las independientes sean el año (tiempo) y la especialidad. Con esto se podría crear el modelo y analizar la diferencia entre la tendencia global y la tendencia en cada una de las especialidades, quizá una opción sea determinar la interacción o algún otro valor estadístico.
 
-Otras opciones más simples serían realizar chi-cuadrado entre el número de hombres y mujeres en los distintos años y/o especialidades.
+```{r}
+# Separado en 2 subgrupos
+p_specialty_types <- dat %>%
+  group_by(year, especialidad_quirurgica) %>%
+  summarize(p = mean(genero, na.rm = TRUE))
 
-## Gráficas y tablas
+p_years <- dat %>% group_by(year) %>% summarize(p_total = mean(genero, na.rm = TRUE))
 
--   Descripción de la población del estudio
+p_data <- left_join(p_specialty_types, p_years, by = c("year"))
+p_data$especialidad_quirurgica <- ifelse(
+  p_data$especialidad_quirurgica == 1, "Quirúrgica", "Clínica"
+)
 
--   Tendencias de género
+ggplot(p_data) +
+  geom_line(aes(year, p_total)) +
+  geom_line(aes(year, p, color = as.factor(especialidad_quirurgica))) +
+  scale_x_continuous(breaks = seq(2013, 2023, by = 1)) +
+  labs(x = "Año", y = "Proporción de mujeres", color = "Tipo de especialidad")
+
+```
+
+### Ingresantes
+
+Hacer los mismos gráficos
+
+```{r}
+dat_ingresantes <- filter(dat, ingreso == 1)
+
+x <- dat_ingresantes
+x$genero_factor <- ifelse(
+  is.na(x$genero),
+  "No género asignado",
+  ifelse(
+    x$genero == 1,
+    "Femenino",
+    "Masculino"
+  )
+)
+x$genero_factor <- factor(x$genero_factor, levels = c("No género asignado", "Masculino", "Femenino"))
+
+ggplot(x) +
+  geom_bar(aes(year, fill = genero_factor)) +
+  labs(x = "Año", y = "Número de postulantes", fill = "Género") +
+  scale_fill_manual(values = c("No género asignado" = "grey80", "Masculino" = "#619CFF", "Femenino" = "#F8766D"))
+```
+
+```{r}
+x <- dat_ingresantes
+x$especialidad_tipo <- ifelse(
+  dat_ingresantes$especialidad_tipo == "laboratorio_diagnostica", "De laboratorio y diagnóstica",
+  ifelse(
+    dat_ingresantes$especialidad_tipo == "medico_quirurgica", "Médico-quirúrgica",
+    ifelse(
+      dat_ingresantes$especialidad_tipo == "quirurgica", "Quirúrgica", "Clínica"
+    )
+  )
+)
+ggplot(x) +
+  geom_bar(
+    aes(year, fill = factor(especialidad_tipo, levels = c(
+      "De laboratorio y diagnóstica", "Médico-quirúrgica", "Quirúrgica", "Clínica")
+    ))
+  ) + labs(x = "Año", y = "Número de postulantes", fill = "Tipo de especialidad")
+```
+
+```{r}
+# Separado en 4 subgrupos
+p_specialty_types <- x %>%
+  group_by(year, especialidad_tipo) %>%
+  summarize(p = mean(genero, na.rm = TRUE))
+
+p_years <- x %>% group_by(year) %>% summarize(p_total = mean(genero, na.rm = TRUE))
+
+p_data <- left_join(p_specialty_types, p_years, by = c("year"))
+
+ggplot(p_data) +
+  geom_line(aes(year, p_total)) +
+  geom_line(aes(year, p, color = especialidad_tipo)) +
+  scale_x_continuous(breaks = seq(2013, 2023, by = 1)) +
+  labs(x = "Año", y = "Proporción de mujeres", color = "Tipo de especialidad")
+```
+
+```{r}
+# Separado en 2 subgrupos
+p_specialty_types <- dat %>%
+  group_by(year, especialidad_quirurgica) %>%
+  summarize(p = mean(genero, na.rm = TRUE))
+
+p_years <- dat %>% group_by(year) %>% summarize(p_total = mean(genero, na.rm = TRUE))
+
+p_data <- left_join(p_specialty_types, p_years, by = c("year"))
+p_data$especialidad_quirurgica <- ifelse(
+  p_data$especialidad_quirurgica == 1, "Quirúrgica", "Clínica"
+)
+
+ggplot(p_data) +
+  geom_line(aes(year, p_total)) +
+  geom_line(aes(year, p, color = as.factor(especialidad_quirurgica))) +
+  scale_x_continuous(breaks = seq(2013, 2023, by = 1)) +
+  labs(x = "Año", y = "Proporción de mujeres", color = "Tipo de especialidad")
+
+```
