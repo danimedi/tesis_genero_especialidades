@@ -250,6 +250,24 @@ ggplot(x, aes(year, women)) +
   labs(x = "Año", y = "Proporción de mujeres")
 ```
 
+
+This graph contains the trends of the total population (global trend) and the trends of the different groups of specialties (surgical vs. clinical).
+
+```{r}
+ggplot(x) +
+  geom_line(aes(year, women)) +
+  geom_smooth(aes(year, women), method = "glm", method.args = list(family = "binomial"), se = FALSE, color = "blue") +
+  geom_line(aes(year, women, color = especialidad_quirurgica)) +
+  labs(x = "Año", y = "Proporción de mujeres")
+```
+
+
+
+
+***
+
+NOTE: THE PART BELOW THIS LINE CONTAINS ANALYSIS THAT I HAVEN'T FINISHED YET
+
 Here we have our line!!!
 
 Now, I want to know if the coefficient, aka the "trend" is the same for the other specialties or for the surgical vs. clinical specialties. Let's begin with the surgical vs. clinical because they have more data (aka more reliability).
