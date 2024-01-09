@@ -1,10 +1,25 @@
+## Limpieza de datos
 
-`add_2022_2023.R` contiene el código para agregar los datos de 2022 y 2023 a la base de datos final (`full_data.csv`).
+### Obtención de datos y unificación
 
-`clean_2022_2023_csv.R` tiene el código usado para "limpiar" las bases de datos obtenidas del PDF luego de usar la herramienta [tabula](https://tabula.technology/) para extraer tablas en CSV de los PDFs. Nota: en este repositorio no se incluyen las bases de datos usadas en el código de este archivo por temas de privacidad.
+Los datos originales se obtuvieron de la [página web de CONAREME](https://www.conareme.org.pe/web/). Estos datos se encuentran en formato PDF, estos archivos fueron colocados en una [carpeta Drive](https://drive.google.com/drive/folders/1e4MtL0uBSwDoeJs7bZjQH9q3Dop9anFb?usp=sharing). Se usó el programa [Tabula](https://tabula.technology/) para extraer las tablas en archivos CSV. Estos archivos extraidos también se encuentran en la misma [carpeta Drive](https://drive.google.com/drive/folders/1e4MtL0uBSwDoeJs7bZjQH9q3Dop9anFb?usp=sharing).
 
-`analysis.qmd` tiene el código del análisis de los datos
+### Extracción y limpieza
 
-## Corrigiendo datos del 2021
+Estos archivos CSV fueron usados como fuente de datos. En primer lugar se seleccionaron las columnas con información relevante para la investigación. Para esto se usó el código del archivo `simplify_raw_csv.R`.
 
-Los datos del 2021 no estaban adecuadamente descargados, por este motivo se volvió a realizar la extracción de datos, el código usado para agregar estos datos es el siguiente: `add_fixed_2021_data.R`.
+Luego, se cambiaron los nombres de las columnas de forma estandarizada. Esto se realizó con el código en `fix_column_names.R`.
+
+Luego, se agregó la columna de ingreso (si los postulantes ingresaron o no en su postulación) con el código en `add_ingreso_column.R`.
+
+Luego, se asigno el género con el código en `assign_gender.R`.
+
+Finalmente, se juntó toda la información en una sola base de datos y también se retiraron los identificadores (número identificador y nombres). Código en `unify_data.R`.
+
+### Limpieza de variables
+
+Algunos nombres de especialidades se escriben ligeramente diferente en distintos años, el código en `clean_specialties.R` soluciona este problema.
+
+### Análisis
+
+El código del análisis se encuentra en el archivo `analysis.qmd`. 
