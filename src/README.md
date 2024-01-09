@@ -20,6 +20,8 @@ Finalmente, se juntó toda la información en una sola base de datos y también 
 
 Algunos nombres de especialidades se escriben ligeramente diferente en distintos años, el código en `clean_specialties.R` soluciona este problema.
 
+También hubo problemas con algunos nombres de universidades, esto se corrigió con el código en `clean_universities.R`.
+
 ### Análisis
 
 El código del análisis se encuentra en el archivo `analysis.qmd`. 
