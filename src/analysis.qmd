@@ -106,18 +106,55 @@ dat %>%
 
 ### Tabla: regiones
 
+Nota: para esto es necesario identificar las regiones de cada universidad.
 
-### Tabla: ingresantes
+### Ingresantes
 
+#### Ingresantes: años
 
+Datos para ingresantes, similar a la tabla 1 (pero solo de ingresantes).
 
+```{r}
+dat_ingresantes <- filter(dat, ingreso == 1)
 
+dat_ingresantes %>%
+  group_by(year) %>%
+  summarize(
+    n_ingresantes = length(year),
+    n_genero = sum(!is.na(genero)),
+    p_genero = sum(!is.na(genero)) / length(year),
+    n_mujeres = sum(genero == 1, na.rm = TRUE),
+    p_mujeres = sum(genero == 1, na.rm = TRUE) / sum(!is.na(genero)),
+    n_hombres = sum(genero == 0, na.rm = TRUE),
+    p_hombres = sum(genero == 0, na.rm = TRUE) / sum(!is.na(genero))
+  )
+```
 
+#### Ingresantes: especialidades
 
+Datos para ingresantes, similar a la tabla 2 (pero solo de ingresantes).
+
+```{r}
+dat_ingresantes <- filter(dat, ingreso == 1)
+
+dat_ingresantes %>%
+  group_by(especialidad) %>%
+  summarize(
+    n_ingresantes = length(especialidad),
+    n_genero = sum(!is.na(genero)),
+    p_genero = sum(!is.na(genero)) / length(especialidad),
+    n_mujeres = sum(genero == 1, na.rm = TRUE),
+    p_mujeres = sum(genero == 1, na.rm = TRUE) / sum(!is.na(genero)),
+    n_hombres = sum(genero == 0, na.rm = TRUE),
+    p_hombres = sum(genero == 0, na.rm = TRUE) / sum(!is.na(genero))
+  )
+```
 
 ## Análisis sobre las tendencias de género
 
-¿La proporción de mujeres y hombres ha cambiado? (en la totalidad vs. en subgrupos, diferentes especialidades)
+¿La proporción de mujeres y hombres ha cambiado? (en la totalidad vs. en subgrupos, diferentes especialidades).
+
+Se pueden observar distintos gráficos.
 
 ```{r}
 i_no_gender <- is.na(dat$genero)
