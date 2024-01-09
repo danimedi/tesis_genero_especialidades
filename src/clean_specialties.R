@@ -74,12 +74,10 @@ dat$especialidad <- collapse_into_one(
 # Medicina de enfermedades infecciosas
 dat$especialidad <- collapse_into_one(
   x = dat$especialidad,
-  input = "MEDICINA DE ENFERMEDADES INFECCIOSAS Y TROPIC",
-  output = "MEDICINA DE ENFERMEDADES INFECCIOSAS Y TROPICALES"
-)
-dat$especialidad <- collapse_into_one(
-  x = dat$especialidad,
-  input = "MEDICINA DE ENFERMEDADES INFECCIOSA",
+  input = c(
+    "MEDICINA DE ENFERMEDADES INFECCIOSAS Y TROPIC",
+    "MEDICINA DE ENFERMEDADES INFECCIOSA"
+  ),
   output = "MEDICINA DE ENFERMEDADES INFECCIOSAS Y TROPICALES"
 )
 
@@ -93,12 +91,7 @@ dat$especialidad <- collapse_into_one(
 # Psiquiatría del niño
 dat$especialidad <- collapse_into_one(
   x = dat$especialidad,
-  input = "PSIQUIATRIA DEL NIÃ‘O Y DEL ADOLESCENT",
-  output = "PSIQUIATRIA DEL NIÑO Y DEL ADOLESCENTE"
-)
-dat$especialidad <- collapse_into_one(
-  x = dat$especialidad,
-  input = "PSIQUIATRIA DE NIÑOS Y ADOLESCENTES",
+  input = c("PSIQUIATRIA DEL NIÃ‘O Y DEL ADOLESCENT", "PSIQUIATRIA DE NIÑOS Y ADOLESCENTES"),
   output = "PSIQUIATRIA DEL NIÑO Y DEL ADOLESCENTE"
 )
 
