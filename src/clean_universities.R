@@ -25,7 +25,10 @@ dat$universidad <- collapse_into_one(
 # UNMSM
 dat$universidad <- collapse_into_one(
   x = dat$universidad,
-  input = c("EMMAUNMSM", "N FEURNMASNMDEZ", "OUNMSM", "RRESUNMSM", "SABINUANMSM", "SUNMSM", "EDESUNMSM"),
+  input = c(
+    "EMMAUNMSM", "N FEURNMASNMDEZ", "OUNMSM", "RRESUNMSM", "SABINUANMSM",
+    "SUNMSM", "EDESUNMSM", "Lima - UNMSM"
+  ),
   output = "UNMSM"
 )
 
@@ -70,6 +73,14 @@ dat$universidad <- collapse_into_one(
   input = c("NUNCP"),
   output = "UNCP"
 )
+
+# UNC
+dat$universidad <- collapse_into_one(
+  x = dat$universidad,
+  input = c("NUNCP"),
+  output = "UNCP"
+)
+
 
 sort(table(dat$universidad)) # Detect wrong universities
 
