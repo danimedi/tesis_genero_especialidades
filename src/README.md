@@ -22,6 +22,8 @@ Algunos nombres de especialidades se escriben ligeramente diferente en distintos
 
 También hubo problemas con algunos nombres de universidades, esto se corrigió con el código en `clean_universities.R`.
 
+Para mayor facilidad al trabajar con las especialidades quirúrgicas, se agregó una columna de especialidad quirúrgica con el código en ``
+
 ### Análisis
 
 El código del análisis se encuentra en el archivo `analysis.qmd`. 
