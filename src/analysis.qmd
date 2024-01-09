@@ -1,7 +1,10 @@
 ---
 title: "Análisis"
 author: "Daniel Medina"
-format: html
+format:
+  docx:
+    reference-doc: custom-reference.docx
+    embed-resources: true
 editor: visual
 ---
 
@@ -50,7 +53,7 @@ La tabla 1 incluye las siguientes columnas:
 * Número de mujeres y hombres postulantes (con el porcentaje de mujeres)
 
 ```{r tabla-1}
-dat %>%
+res <- dat %>%
   group_by(year) %>%
   summarize(
     n_postulantes = length(year),
@@ -61,6 +64,8 @@ dat %>%
     n_hombres = sum(genero == 0, na.rm = TRUE),
     p_hombres = sum(genero == 0, na.rm = TRUE) / sum(!is.na(genero))
   )
+res
+write.table(res, here("output/tabla_1.txt"), sep = "\t", row.names = FALSE)
 ```
 
 ### Tabla 2 - especialidades
@@ -75,7 +80,7 @@ Las columnas de esta tabla son:
 * Porcentaje de mujeres y hombres
 
 ```{r tabla-2}
-dat %>%
+res <- dat %>%
   group_by(especialidad) %>%
   summarize(
     n_postulantes = length(especialidad),
@@ -86,6 +91,8 @@ dat %>%
     n_hombres = sum(genero == 0, na.rm = TRUE),
     p_hombres = sum(genero == 0, na.rm = TRUE) / sum(!is.na(genero))
   )
+res
+write.table(res, here("output/tabla_2.txt"), sep = "\t", row.names = FALSE)
 ```
 
 ### Tabla: universidades
@@ -117,7 +124,7 @@ Datos para ingresantes, similar a la tabla 1 (pero solo de ingresantes).
 ```{r}
 dat_ingresantes <- filter(dat, ingreso == 1)
 
-dat_ingresantes %>%
+res <- dat_ingresantes %>%
   group_by(year) %>%
   summarize(
     n_ingresantes = length(year),
@@ -128,6 +135,8 @@ dat_ingresantes %>%
     n_hombres = sum(genero == 0, na.rm = TRUE),
     p_hombres = sum(genero == 0, na.rm = TRUE) / sum(!is.na(genero))
   )
+res
+write.table(res, here("output/tabla_3.txt"), sep = "\t", row.names = FALSE)
 ```
 
 #### Ingresantes: especialidades
@@ -137,7 +146,7 @@ Datos para ingresantes, similar a la tabla 2 (pero solo de ingresantes).
 ```{r}
 dat_ingresantes <- filter(dat, ingreso == 1)
 
-dat_ingresantes %>%
+res <- dat_ingresantes %>%
   group_by(especialidad) %>%
   summarize(
     n_ingresantes = length(especialidad),
@@ -148,6 +157,8 @@ dat_ingresantes %>%
     n_hombres = sum(genero == 0, na.rm = TRUE),
     p_hombres = sum(genero == 0, na.rm = TRUE) / sum(!is.na(genero))
   )
+res
+write.table(res, here("output/tabla_4.txt"), sep = "\t", row.names = FALSE)
 ```
 
 ## Análisis sobre las tendencias de género
@@ -171,36 +182,47 @@ for (specialty in unique(x$especialidad)) {
     geom_line() +
     ggtitle(specialty) +
     labs(subtitle = paste0("Número de personas: ", n))
+  ggsave(here("output", paste0("graph_1-", specialty, ".png")))
   print(p)
 }
 ```
 
-Ahora, veremos cómo se comparan las especialidades médicas con las quirúrgicas.
+Ahora, veremos cómo se comparan las especialidades clínicas con las quirúrgicas.
 
 ```{r}
-especialidades <- unique(dat$especialidad_postulantes)
-i <- c(2, 3, 11, 17, 33, 37, 47, 57, 63, 67, 75, 77, 79, 81, 83, 12, 14, 16, 22, 24, 36, 46, 56, 58, 64, 74, 76, 78, 80)
-quirurgicas <- especialidades[i]
-
-x <- ifelse(dat$especialidad_postulantes %in% quirurgicas, TRUE, FALSE)
-dat$especialidad_quirurgica <- x
-
-# Graph
 x <- dat[!i_no_gender, ] %>%
   group_by(year, especialidad_quirurgica) %>%
-  summarize(women = mean(gender))
+  summarize(women = mean(genero))
 
 ggplot(x, aes(year, women)) +
   geom_line() +
   facet_wrap(
     vars(especialidad_quirurgica),
     labeller = labeller(especialidad_quirurgica = c(
-      "FALSE" = "Especialidades clínicas",
-      "TRUE" = "Especialidades quirúrgicas"
+      "0" = "Especialidades clínicas",
+      "1" = "Especialidades quirúrgicas"
     ))
   ) +
   labs(x = "Año", y = "Proporción de mujeres")
+ggsave(here("output", "graph_2.png"))
 ```
+
+This graph is similar, but with more categories.
+
+```{r}
+x <- dat[!i_no_gender, ] %>%
+  group_by(year, especialidad_tipo) %>%
+  summarize(women = mean(genero))
+
+ggplot(x, aes(year, women)) +
+  geom_line() +
+  facet_wrap(
+    vars(especialidad_tipo)
+  ) +
+  labs(x = "Año", y = "Proporción de mujeres")
+ggsave(here("output/graph_3.png"))
+```
+
 
 You can see that there is a wide difference between the gender distribution of surgical and clinical specialties.
 
@@ -213,6 +235,7 @@ x <- dat[!i_no_gender, ] %>%
 ggplot(x, aes(year, women)) +
   geom_line() +
   labs(x = "Año", y = "Proporción de mujeres")
+ggsave(here("output", "graph_4.png"))
 ```
 
 So, we can create a line that is the model for the trend.
@@ -234,7 +257,7 @@ Now, I want to know if the coefficient, aka the "trend" is the same for the othe
 Let's model the relationship between gender and years only.
 
 ```{r}
-model_1 <- glm(gender ~ year, data = dat[!i_no_gender, ], family = "binomial")
+model_1 <- glm(genero ~ year, data = dat[!i_no_gender, ], family = "binomial")
 summary(model_1)
 exp(coef(model_1))
 exp(confint(model_1))
@@ -243,7 +266,7 @@ exp(confint(model_1))
 Now create a model including another binomial variable for surgical vs. non-surgical specialty.
 
 ```{r}
-model_2 <- glm(gender ~ year + especialidad_quirurgica, data = dat[!i_no_gender, ], family = "binomial")
+model_2 <- glm(genero ~ year + especialidad_quirurgica, data = dat[!i_no_gender, ], family = "binomial")
 summary(model_2)
 
 exp(coef(model_2))
@@ -253,12 +276,12 @@ exp(confint(model_2))
 Let's try my brother's suggestion and create a model comparing each specialty to the rest.
 
 ```{r}
-specialties <- unique(dat[!i_no_gender, ]$especialidad_postulantes)
+specialties <- unique(dat[!i_no_gender, ]$especialidad)
 
 res_models <- vector(mode = "list", length = length(specialties))
 for (i in seq_along(specialties)) {
   model_x <- glm(
-    gender ~ ifelse(especialidad_postulantes == specialties[[i]], 1, 0) + year,
+    genero ~ ifelse(especialidad == specialties[[i]], 1, 0) + year,
     data = dat[!i_no_gender, ],
     family = "binomial"
   )
@@ -277,17 +300,17 @@ I want to know if there is an effect modification of the specialty on the effect
 Here is another try, suggested by my brother:
 
 ```{r}
-model_3 <- glm(gender ~ year + especialidad_quirurgica, data = dat[!i_no_gender, ], family = "binomial")
+model_3 <- glm(genero ~ year + especialidad_quirurgica, data = dat[!i_no_gender, ], family = "binomial")
 summary(model_2)
 ```
 
 Posibilidad de crear un modelo estadístico???
 
 ```{r}
-i <- is.na(dat$gender) | is.na(dat$especialidad_postulantes)
-dat <- dat[!i, ]
-dat$especialidad_postulantes <- as.factor(dat$especialidad_postulantes)
-model <- glm(gender ~ year + especialidad_postulantes, data = dat, family = "binomial")
+# i <- is.na(dat$genero) | is.na(dat$especialidad)
+# dat <- dat[!i, ]
+# dat$especialidad <- as.factor(dat$especialidad_postulantes)
+# model <- glm(genero ~ year + especialidad_postulantes, data = dat, family = "binomial")
 ```
 
 Nota: para esto el plan de análisis es realizar una regresión logística en la que la variable independiente sea el género y las independientes sean el año (tiempo) y la especialidad. Con esto se podría crear el modelo y analizar la diferencia entre la tendencia global y la tendencia en cada una de las especialidades, quizá una opción sea determinar la interacción o algún otro valor estadístico.

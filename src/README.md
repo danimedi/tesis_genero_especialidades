@@ -10,7 +10,7 @@ Estos archivos CSV fueron usados como fuente de datos. En primer lugar se selecc
 
 Luego, se cambiaron los nombres de las columnas de forma estandarizada. Esto se realizó con el código en `fix_column_names.R`.
 
-Luego, se agregó la columna de ingreso (si los postulantes ingresaron o no en su postulación) con el código en `add_ingreso_column.R`.
+Luego, se agregó la columna de ingreso (si los postulantes ingresaron o no en su postulación) con el código en `add_ingreso_column.R`. También se agregó una columna con la información del tipo de especialidad (opciones: quirúrgica, clínica, médico-quirúrgica, laboratorio o diagnóstica), el código se encuentra en `add_specialty_type_column.R`.
 
 Luego, se asigno el género con el código en `assign_gender.R`.
 
