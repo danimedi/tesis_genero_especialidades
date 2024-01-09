@@ -10,7 +10,7 @@ library(here)
 library(readr)
 library(dplyr)
 library(ggplot2)
-dat <- suppressMessages(read_csv(here("data/full_data.csv")))
+dat <- suppressMessages(read_csv(here("data/full_deidentified_data.csv")))
 ```
 
 ## Estadísticas descriptivas generales
@@ -20,144 +20,116 @@ Decidí trabajar principalemente con datos de los postulantes por dos motivos:
 1.  Se tienen datos de postulantes desde el 2013, a diferencia de los ingresantes, que se tienen datos desde 2016
 2.  Los postulantes muestran la intención de especialidad, reflejando la preferencia de los candidatos.
 
+Algunos datos generales
+
 ```{r}
 # Número total de postulantes
 nrow(dat)
-
-# ... por año
-years <- unique(dat$year)
-res <- vector("double", length(years))
-for (k in seq_along(years)) {
-  i <- dat$year == years[k]
-  res[[k]] <- nrow(dat[i, ])
-}
-data.frame(
-  year = years,
-  n = res
-)
-```
-
-```{r}
 # Número de postulantes con género asignado
-i <- is.na(dat$gender)
-sum(!i)
-
-# ... por año
-years <- unique(dat$year)
-res <- vector("double", length(years))
-for (k in seq_along(years)) {
-  i <- dat$year == years[[k]]
-  res[[k]] <- sum(!is.na(dat[i, "gender", drop = TRUE]))
-}
-data.frame(
-  year = years,
-  n = res
-)
-```
-
-```{r}
+sum(!is.na(dat$genero))
 # Porcentaje de postulantes con género asignado
-i <- is.na(dat$gender)
+i <- is.na(dat$genero)
 (1 - mean(i)) * 100
-
-# ... y en cada año
-years <- unique(dat$year)
-res <- vector("double", length(years))
-for (k in seq_along(years)) {
-  i <- dat$year == years[k]
-  total <- length(dat[i, "gender", drop = TRUE])
-  with_gender <- sum(!is.na(dat[i, "gender", drop = TRUE]))
-  res[[k]] <- with_gender / total
-}
-data.frame(
-  year = years,
-  n = res
-)
+# Número de mujeres ...
+sum(dat$genero == 1, na.rm = TRUE)
+# y de hombres
+sum(dat$genero == 0, na.rm = TRUE)
+# Porcentaje de mujeres ...
+sum(dat$genero == 1, na.rm = TRUE) / sum(!is.na(dat$genero))
+# y de hombres
+sum(dat$genero == 0, na.rm = TRUE) / sum(!is.na(dat$genero))
 ```
+
+### Tabla 1 - años
+
+La tabla 1 incluye las siguientes columnas:
+
+* Año
+* Número de postulantes
+* Número y porcentaje de postulantes con género asignado
+* Número de mujeres y hombres postulantes (con el porcentaje de mujeres)
+
+```{r tabla-1}
+dat %>%
+  group_by(year) %>%
+  summarize(
+    n_postulantes = length(year),
+    n_genero = sum(!is.na(genero)),
+    p_genero = sum(!is.na(genero)) / length(year),
+    n_mujeres = sum(genero == 1, na.rm = TRUE),
+    p_mujeres = sum(genero == 1, na.rm = TRUE) / sum(!is.na(genero)),
+    n_hombres = sum(genero == 0, na.rm = TRUE),
+    p_hombres = sum(genero == 0, na.rm = TRUE) / sum(!is.na(genero))
+  )
+```
+
+### Tabla 2 - especialidades
+
+Esta tabla es similar a la tabla 1, pero en lugar de estratificar en los diferentes años, estratifica en las distintas especialidades.
+
+Las columnas de esta tabla son:
+
+* Especialidad
+* Número de postulantes
+* Número de mujeres y hombres
+* Porcentaje de mujeres y hombres
+
+```{r tabla-2}
+dat %>%
+  group_by(especialidad) %>%
+  summarize(
+    n_postulantes = length(especialidad),
+    n_genero = sum(!is.na(genero)),
+    p_genero = sum(!is.na(genero)) / length(especialidad),
+    n_mujeres = sum(genero == 1, na.rm = TRUE),
+    p_mujeres = sum(genero == 1, na.rm = TRUE) / sum(!is.na(genero)),
+    n_hombres = sum(genero == 0, na.rm = TRUE),
+    p_hombres = sum(genero == 0, na.rm = TRUE) / sum(!is.na(genero))
+  )
+```
+
+### Tabla: universidades
 
 ```{r}
-# Numero de hombres ...
-x <- dat$gender == 0
-x <- na.omit(x)
-sum(x)
-
-# y de mujeres
-x <- dat$gender == 1
-x <- na.omit(x)
-sum(x)
-
-# Porcentaje de mujeres en los distintos años
-i <- is.na(dat$gender)
-(1 - mean(i)) * 100
-
-# ... y en cada año
-years <- unique(dat$year)
-res <- vector("double", length(years))
-for (k in seq_along(years)) {
-  i <- dat$year == years[k]
-  res[[k]] <- mean(dat[i, "gender", drop = TRUE], na.rm = TRUE)
-}
-data.frame(
-  year = years,
-  n = res
-)
+dat %>%
+  group_by(universidad) %>%
+  summarize(
+    n_postulantes = length(universidad),
+    n_genero = sum(!is.na(genero)),
+    p_genero = sum(!is.na(genero)) / length(universidad),
+    n_mujeres = sum(genero == 1, na.rm = TRUE),
+    p_mujeres = sum(genero == 1, na.rm = TRUE) / sum(!is.na(genero)),
+    n_hombres = sum(genero == 0, na.rm = TRUE),
+    p_hombres = sum(genero == 0, na.rm = TRUE) / sum(!is.na(genero))
+  )
 ```
 
-```{r}
-specialties <- unique(dat$especialidad_postulantes)
-res_n <- vector("double", length(specialties))
-res_p_women <- vector("double", length(specialties))
-for (k in seq_along(specialties)) {
-  i <- dat$especialidad_postulantes == specialties[k]
-  res_n[[k]] <- nrow(dat[i, ])
-  res_p_women[[k]] <- mean(dat[i, "gender", drop = TRUE], na.rm = TRUE)
-}
-data.frame(
-  specialty = specialties,
-  n = res_n,
-  p_women = res_p_women
-)
-
-# Detect the missing specialties
-i <- is.na(dat$especialidad_postulantes)
-dat[i, ] %>% group_by(year) %>% count()
-
-x <- dat %>% group_by(especialidad_postulantes) %>% count()
-y <- dat %>%
-  group_by(especialidad_postulantes) %>%
-  summarize(p_women = mean(gender, na.rm = TRUE))
-left_join(x, y, by = join_by(especialidad_postulantes))
-```
+### Tabla: regiones
 
 
-```{r}
-# Número de postulantes a cada especialidad ...
-dat |>
-  group_by(especialidad_postulantes) |>
-  count()
+### Tabla: ingresantes
 
-# y su distribución de género
-i <- is.na(dat$gender)
-dat[!i, ] |>
-  group_by(especialidad_postulantes, gender) |>
-  count()
-```
+
+
+
+
+
 
 ## Análisis sobre las tendencias de género
 
 ¿La proporción de mujeres y hombres ha cambiado? (en la totalidad vs. en subgrupos, diferentes especialidades)
 
 ```{r}
-i_no_gender <- is.na(dat$gender)
+i_no_gender <- is.na(dat$genero)
 x <- dat[!i_no_gender, ] %>%
-  group_by(year, especialidad_postulantes) %>%
-  summarize(women = mean(gender))
+  group_by(year, especialidad) %>%
+  summarize(women = mean(genero))
 ```
 
 ```{r}
-for (specialty in unique(x$especialidad_postulantes)) {
-  i <- x$especialidad_postulantes == specialty
-  n <- sum(dat[!i_no_gender, ]$especialidad_postulantes == specialty)
+for (specialty in unique(x$especialidad)) {
+  i <- x$especialidad == specialty
+  n <- sum(dat[!i_no_gender, ]$especialidad == specialty)
   p <- ggplot(x[i, ], aes(year, women)) +
     geom_line() +
     ggtitle(specialty) +
@@ -200,7 +172,7 @@ Now, we have this graph that is the global trend:
 ```{r}
 x <- dat[!i_no_gender, ] %>%
   group_by(year) %>%
-  summarize(women = mean(gender))
+  summarize(women = mean(genero))
 ggplot(x, aes(year, women)) +
   geom_line() +
   labs(x = "Año", y = "Proporción de mujeres")
@@ -209,7 +181,7 @@ ggplot(x, aes(year, women)) +
 So, we can create a line that is the model for the trend.
 
 ```{r}
-model <- glm(gender ~ year, data = dat[!i_no_gender, ], family = "binomial")
+model <- glm(genero ~ year, data = dat[!i_no_gender, ], family = "binomial")
 summary(model)
 
 ggplot(x, aes(year, women)) +
