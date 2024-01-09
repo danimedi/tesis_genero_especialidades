@@ -47,10 +47,10 @@ sum(dat$genero == 0, na.rm = TRUE) / sum(!is.na(dat$genero))
 
 La tabla 1 incluye las siguientes columnas:
 
-* Año
-* Número de postulantes
-* Número y porcentaje de postulantes con género asignado
-* Número de mujeres y hombres postulantes (con el porcentaje de mujeres)
+-   Año
+-   Número de postulantes
+-   Número y porcentaje de postulantes con género asignado
+-   Número de mujeres y hombres postulantes (con el porcentaje de mujeres)
 
 ```{r tabla-1}
 res <- dat %>%
@@ -74,10 +74,10 @@ Esta tabla es similar a la tabla 1, pero en lugar de estratificar en los diferen
 
 Las columnas de esta tabla son:
 
-* Especialidad
-* Número de postulantes
-* Número de mujeres y hombres
-* Porcentaje de mujeres y hombres
+-   Especialidad
+-   Número de postulantes
+-   Número de mujeres y hombres
+-   Porcentaje de mujeres y hombres
 
 ```{r tabla-2}
 res <- dat %>%
@@ -249,7 +249,6 @@ ggplot(p_data) +
   labs(x = "Año", y = "Proporción de mujeres", color = "Tipo de especialidad")
 ```
 
-
 ```{r}
 # Separado en 2 subgrupos
 p_specialty_types <- dat %>%
@@ -273,6 +272,17 @@ ggplot(p_data) +
 
 ### Ingresantes
 
+Algún gráfico que muestre la magnitud de la diferencia de postulantes e ingresantes.
+
+```{r}
+x <- dat[dat$year >= 2016, ]
+x$ingreso <- ifelse(x$ingreso == 1, "Ingresó", "No ingresó")
+
+ggplot(x) +
+  geom_bar(aes(year, fill = factor(ingreso, levels = c("No ingresó", "Ingresó"))), position = "dodge") +
+  labs(fill = "Resultado de postulación", x = "Año", y = "Número de postulantes")
+```
+
 Hacer los mismos gráficos
 
 ```{r}
@@ -292,7 +302,7 @@ x$genero_factor <- factor(x$genero_factor, levels = c("No género asignado", "Ma
 
 ggplot(x) +
   geom_bar(aes(year, fill = genero_factor)) +
-  labs(x = "Año", y = "Número de postulantes", fill = "Género") +
+  labs(x = "Año", y = "Número de ingresantes", fill = "Género") +
   scale_fill_manual(values = c("No género asignado" = "grey80", "Masculino" = "#619CFF", "Femenino" = "#F8766D"))
 ```
 
@@ -312,7 +322,7 @@ ggplot(x) +
     aes(year, fill = factor(especialidad_tipo, levels = c(
       "De laboratorio y diagnóstica", "Médico-quirúrgica", "Quirúrgica", "Clínica")
     ))
-  ) + labs(x = "Año", y = "Número de postulantes", fill = "Tipo de especialidad")
+  ) + labs(x = "Año", y = "Número de ingresantes", fill = "Tipo de especialidad")
 ```
 
 ```{r}
@@ -352,3 +362,63 @@ ggplot(p_data) +
   labs(x = "Año", y = "Proporción de mujeres", color = "Tipo de especialidad")
 
 ```
+
+### Especialidades vs. subespecialidades
+
+Observar la magnitud de la diferencia
+
+```{r}
+x <- dat
+x$subespecialidad <- ifelse(x$subespecialidad == 1, "Subespecialidad", "Especialidad")
+
+ggplot(x) +
+  geom_bar(aes(year, fill = factor(subespecialidad, levels = c("Subespecialidad", "Especialidad"))), position = "dodge") +
+  labs(fill = "Nivel de especialización", x = "Año", y = "Número de postulantes")
+```
+
+Obtener los mismos gráficos para especialidades y subespecialidades.
+
+```{r}
+dat_subspecialty <- dat[dat$subespecialidad == 1, ]
+
+x <- dat_subspecialty
+x$genero_factor <- ifelse(
+  is.na(x$genero),
+  "No género asignado",
+  ifelse(
+    x$genero == 1,
+    "Femenino",
+    "Masculino"
+  )
+)
+x$genero_factor <- factor(x$genero_factor, levels = c("No género asignado", "Masculino", "Femenino"))
+
+ggplot(x) +
+  geom_bar(aes(year, fill = genero_factor)) +
+  labs(x = "Año", y = "Número de postulantes", fill = "Género") +
+  scale_fill_manual(values = c("No género asignado" = "grey80", "Masculino" = "#619CFF", "Femenino" = "#F8766D"))
+```
+
+Graficar línea de subespecialidades vs. tendencia global.
+
+```{r}
+# Separado en 2 subgrupos
+p_specialty_types <- dat %>%
+  group_by(year, subespecialidad) %>%
+  summarize(p = mean(genero, na.rm = TRUE))
+
+p_years <- dat %>% group_by(year) %>% summarize(p_total = mean(genero, na.rm = TRUE))
+
+p_data <- left_join(p_specialty_types, p_years, by = c("year"))
+p_data$subespecialidad <- ifelse(
+  p_data$subespecialidad == 1, "Subespecialidad", "Especialidad"
+)
+
+ggplot(p_data) +
+  geom_line(aes(year, p_total)) +
+  geom_line(aes(year, p, color = as.factor(subespecialidad))) +
+  scale_x_continuous(breaks = seq(2013, 2023, by = 1)) +
+  labs(x = "Año", y = "Proporción de mujeres", color = "Nivel de especialización")
+
+```
+
