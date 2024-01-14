@@ -1,11 +1,8 @@
 ---
 title: "Análisis"
 author: "Daniel Medina"
-format:
-  docx:
-    reference-doc: custom-reference.docx
-    embed-resources: true
-editor: visual
+format: html
+editor: source
 ---
 
 ```{r}
@@ -16,12 +13,7 @@ library(ggplot2)
 dat <- suppressMessages(read_csv(here("data/full_deidentified_data.csv")))
 ```
 
-## Estadísticas descriptivas generales
-
-Decidí trabajar principalemente con datos de los postulantes por dos motivos:
-
-1.  Se tienen datos de postulantes desde el 2013, a diferencia de los ingresantes, que se tienen datos desde 2016
-2.  Los postulantes muestran la intención de especialidad, reflejando la preferencia de los candidatos.
+# Estadísticas descriptivas generales
 
 Algunos datos generales
 
@@ -43,7 +35,7 @@ sum(dat$genero == 1, na.rm = TRUE) / sum(!is.na(dat$genero))
 sum(dat$genero == 0, na.rm = TRUE) / sum(!is.na(dat$genero))
 ```
 
-### Tabla 1 - años
+## Distribución de género en los distintos años
 
 La tabla 1 incluye las siguientes columnas:
 
@@ -68,9 +60,12 @@ res
 write.table(res, here("output/tabla_1.txt"), sep = "\t", row.names = FALSE)
 ```
 
-### Tabla 2 - especialidades
 
-Esta tabla es similar a la tabla 1, pero en lugar de estratificar en los diferentes años, estratifica en las distintas especialidades.
+# Comparación de especialidades
+
+## Distribución de género en las distintas especialidades.
+
+Esta tabla estratifica en las distintas especialidades.
 
 Las columnas de esta tabla son:
 
@@ -95,86 +90,14 @@ res
 write.table(res, here("output/tabla_2.txt"), sep = "\t", row.names = FALSE)
 ```
 
-### Tabla: universidades
-
-```{r}
-dat %>%
-  group_by(universidad) %>%
-  summarize(
-    n_postulantes = length(universidad),
-    n_genero = sum(!is.na(genero)),
-    p_genero = sum(!is.na(genero)) / length(universidad),
-    n_mujeres = sum(genero == 1, na.rm = TRUE),
-    p_mujeres = sum(genero == 1, na.rm = TRUE) / sum(!is.na(genero)),
-    n_hombres = sum(genero == 0, na.rm = TRUE),
-    p_hombres = sum(genero == 0, na.rm = TRUE) / sum(!is.na(genero))
-  )
-```
-
-### Tabla: regiones
-
-Nota: para esto es necesario identificar las regiones de cada universidad.
-
-### Ingresantes
-
-#### Ingresantes: años
-
-Datos para ingresantes, similar a la tabla 1 (pero solo de ingresantes).
-
-```{r}
-dat_ingresantes <- filter(dat, ingreso == 1)
-
-res <- dat_ingresantes %>%
-  group_by(year) %>%
-  summarize(
-    n_ingresantes = length(year),
-    n_genero = sum(!is.na(genero)),
-    p_genero = sum(!is.na(genero)) / length(year),
-    n_mujeres = sum(genero == 1, na.rm = TRUE),
-    p_mujeres = sum(genero == 1, na.rm = TRUE) / sum(!is.na(genero)),
-    n_hombres = sum(genero == 0, na.rm = TRUE),
-    p_hombres = sum(genero == 0, na.rm = TRUE) / sum(!is.na(genero))
-  )
-res
-write.table(res, here("output/tabla_3.txt"), sep = "\t", row.names = FALSE)
-```
-
-#### Ingresantes: especialidades
-
-Datos para ingresantes, similar a la tabla 2 (pero solo de ingresantes).
-
-```{r}
-dat_ingresantes <- filter(dat, ingreso == 1)
-
-res <- dat_ingresantes %>%
-  group_by(especialidad) %>%
-  summarize(
-    n_ingresantes = length(especialidad),
-    n_genero = sum(!is.na(genero)),
-    p_genero = sum(!is.na(genero)) / length(especialidad),
-    n_mujeres = sum(genero == 1, na.rm = TRUE),
-    p_mujeres = sum(genero == 1, na.rm = TRUE) / sum(!is.na(genero)),
-    n_hombres = sum(genero == 0, na.rm = TRUE),
-    p_hombres = sum(genero == 0, na.rm = TRUE) / sum(!is.na(genero))
-  )
-res
-write.table(res, here("output/tabla_4.txt"), sep = "\t", row.names = FALSE)
-```
-
-## Análisis sobre las tendencias de género (gráficos)
-
-¿La proporción de mujeres y hombres ha cambiado? (en la totalidad vs. en subgrupos, diferentes especialidades).
-
-Se pueden observar distintos gráficos.
+El código a continuación genera gráficos de la distribución de género de cada una de las especialidades.
 
 ```{r}
 i_no_gender <- is.na(dat$genero)
 x <- dat[!i_no_gender, ] %>%
   group_by(year, especialidad) %>%
   summarize(women = mean(genero))
-```
 
-```{r}
 for (specialty in unique(x$especialidad)) {
   i <- x$especialidad == specialty
   n <- sum(dat[!i_no_gender, ]$especialidad == specialty)
@@ -188,7 +111,52 @@ for (specialty in unique(x$especialidad)) {
 }
 ```
 
-Se puede realizar gráficos similares utilizando dos curvas para ambos sexos.
+## Prueba estadística
+
+```{r}
+x <- dat[!is.na(dat$genero), ]
+specialties <- unique(x$especialidad)
+list_models <- vector("list", length(specialties))
+for (i in seq_along(specialties)) {
+  list_models[[i]] <- glm(
+    genero ~ ifelse(
+      especialidad == specialties[[i]],
+      1, 0
+    ) * year,
+    data = x
+  )
+}
+names(list_models) <- specialties
+
+j <- 1
+summary(list_models[[j]])
+round(
+  cbind(
+    exp(coef(list_models[[j]])),
+    exp(confint(list_models[[j]]))
+  ),
+  2
+)
+```
+
+```{r}
+x <- dat[!is.na(dat$genero), ]
+list_models <- vector("list", length(specialties))
+for (i in seq_along(specialties)) {
+  list_models[[i]] <- glm(
+    genero ~ especialidad_quirurgica + year,
+    data = x
+  )
+}
+names(list_models) <- specialties
+```
+
+
+
+
+# Estudio de tendencias
+
+Algunos gráficos ...
 
 ```{r}
 x <- dat
@@ -270,7 +238,62 @@ ggplot(p_data) +
 
 ```
 
-### Ingresantes
+### Modelo estadístico
+
+Para el estudio de la tendencia se puede realizar un modelo de regresión logística (variable dependiente: género, variable independiente: tiempo).
+
+```{r}
+x <- dat[!is.na(dat$genero), ]
+m1 <- glm(genero ~ year, family = "binomial", data = dat)
+summary(m1)
+round(cbind(exp(coef(m1)), exp(confint((m1)))), 2)
+```
+
+También se podría usar un modelo de regresión logística estudiando la modificación de efecto ocasionada por las distintas especialidades o tipos de especialidades.
+
+# Análisis: ingresantes
+
+Tabla descriptiva de datos de ingresantes solamente.
+
+```{r}
+dat_ingresantes <- filter(dat, ingreso == 1)
+
+res <- dat_ingresantes %>%
+  group_by(year) %>%
+  summarize(
+    n_ingresantes = length(year),
+    n_genero = sum(!is.na(genero)),
+    p_genero = sum(!is.na(genero)) / length(year),
+    n_mujeres = sum(genero == 1, na.rm = TRUE),
+    p_mujeres = sum(genero == 1, na.rm = TRUE) / sum(!is.na(genero)),
+    n_hombres = sum(genero == 0, na.rm = TRUE),
+    p_hombres = sum(genero == 0, na.rm = TRUE) / sum(!is.na(genero))
+  )
+res
+write.table(res, here("output/tabla_3.txt"), sep = "\t", row.names = FALSE)
+```
+
+Datos de especialidades de los ingresantes solamente.
+
+```{r}
+dat_ingresantes <- filter(dat, ingreso == 1)
+
+res <- dat_ingresantes %>%
+  group_by(especialidad) %>%
+  summarize(
+    n_ingresantes = length(especialidad),
+    n_genero = sum(!is.na(genero)),
+    p_genero = sum(!is.na(genero)) / length(especialidad),
+    n_mujeres = sum(genero == 1, na.rm = TRUE),
+    p_mujeres = sum(genero == 1, na.rm = TRUE) / sum(!is.na(genero)),
+    n_hombres = sum(genero == 0, na.rm = TRUE),
+    p_hombres = sum(genero == 0, na.rm = TRUE) / sum(!is.na(genero))
+  )
+res
+write.table(res, here("output/tabla_4.txt"), sep = "\t", row.names = FALSE)
+```
+
+## Gráficos de ingresantes solamente
 
 Algún gráfico que muestre la magnitud de la diferencia de postulantes e ingresantes.
 
@@ -363,7 +386,14 @@ ggplot(p_data) +
 
 ```
 
-### Especialidades vs. subespecialidades
+
+## Porcentaje de ingresantes (hombres vs. mujeres)
+
+```{r}
+
+```
+
+# Análisis: especialidades vs. subespecialidades
 
 Observar la magnitud de la diferencia
 
@@ -420,5 +450,24 @@ ggplot(p_data) +
   scale_x_continuous(breaks = seq(2013, 2023, by = 1)) +
   labs(x = "Año", y = "Proporción de mujeres", color = "Nivel de especialización")
 
+```
+
+
+# Análisis: universidades
+
+Tabla descriptiva de los datos de acuerdo a las universidades.
+
+```{r}
+dat %>%
+  group_by(universidad) %>%
+  summarize(
+    n_postulantes = length(universidad),
+    n_genero = sum(!is.na(genero)),
+    p_genero = sum(!is.na(genero)) / length(universidad),
+    n_mujeres = sum(genero == 1, na.rm = TRUE),
+    p_mujeres = sum(genero == 1, na.rm = TRUE) / sum(!is.na(genero)),
+    n_hombres = sum(genero == 0, na.rm = TRUE),
+    p_hombres = sum(genero == 0, na.rm = TRUE) / sum(!is.na(genero))
+  )
 ```
 
