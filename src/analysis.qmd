@@ -113,6 +113,14 @@ for (specialty in unique(x$especialidad)) {
 
 ## Prueba estadística
 
+Identificar las especialidades con mayor diferencia de distribución de género a través de una prueba estadística para determinar las probabilidades de que las diferencias observadas, en comparación con la distribución de género global sean igual de grandes.
+
+Nota: es necesario realizar algún tipo de corrección, debido a estar realizando múltiples pruebas estadísticas.
+
+A continuación se realiza la prueba estadística mediante un modelo de regresión lineal en el que se tiene al género como variable dependiente (outcome), mientras que se tienen a las variables especialidad y el año como independientes (predictors). Se realiza un modelo estadístico por cada una de las especialidades. En cada uno de estos modelos estadísticos se compara a la una especialidad con el resto y se obtiene el valor de p del coeficiente de la especialidad.
+
+Como resultado tenemos las especialidades que son realmente distintas en cuanto a distribución de género respecto a las diferencias globales (esperadas).
+
 ```{r}
 x <- dat[!is.na(dat$genero), ]
 specialties <- unique(x$especialidad)
@@ -122,37 +130,49 @@ for (i in seq_along(specialties)) {
     genero ~ ifelse(
       especialidad == specialties[[i]],
       1, 0
-    ) * year,
+    ) + year,
     data = x
   )
 }
-names(list_models) <- specialties
+df_res <- data.frame("Especialidad" = specialties)
 
-j <- 1
-summary(list_models[[j]])
-round(
-  cbind(
-    exp(coef(list_models[[j]])),
-    exp(confint(list_models[[j]]))
-  ),
-  2
-)
+p_values <- vector("list", length(list_models))
+for (i in seq_along(list_models)) {
+  summary_model <- summary(list_models[[i]])
+  p_values[[i]] <- summary_model$coefficients[2, 4] # p-value of specialty
+}
+p_values <- unlist(p_values)
+df_res$p_values <- p_values
+
+# Bonferroni correction
+p_value_corrected <- 0.05 / length(p_values)
+
+or_values <- conf_int_values <- vector("list", length(list_models))
+for (i in seq_along(list_models)) {
+  or_values[[i]] <- exp(coef(list_models[[i]]))[2] # OR of specialty
+  conf_int_values[[i]] <- exp(
+    confint(list_models[[i]], level = 1 - p_value_corrected)[2, ] # Confidence interval of specialty
+  )
+}
+df_res$or_values <- or_values
+df_res$conf_int_values <- conf_int_values
+
+i <- p_values <= p_value_corrected
+df_res$p_value_significant <- i
+specialties[i]
 ```
+
+Ahora creamos una tabla con los resultados obtenidos. Esta tabla tiene las siguientes columnas:
+
+- Especialidad
+- Número de postulantes
+- OR y OR corregido (con el tiempo)
+- Valor de p
+- ¿Valor de p significativo? (inferior a valor de p corregido por Bonferroni)
 
 ```{r}
-x <- dat[!is.na(dat$genero), ]
-list_models <- vector("list", length(specialties))
-for (i in seq_along(specialties)) {
-  list_models[[i]] <- glm(
-    genero ~ especialidad_quirurgica + year,
-    data = x
-  )
-}
-names(list_models) <- specialties
+df_res
 ```
-
-
-
 
 # Estudio de tendencias
 
