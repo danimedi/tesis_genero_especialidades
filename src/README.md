@@ -28,6 +28,8 @@ Para mayor facilidad al trabajar con las especialidades quirúrgicas, se agregó
 
 Además, se agregó una columna que indica si la especialidad es una especialidad realmente o una subespecialidad. Esto en el código en `add_subspecialty_column.R`.
 
+Debido a que los datos sobre la universidad eran inconsistentes, se agregó una columna sobre los datos de la región geográfica. Esto está en el código en `add_region_data.R`
+
 ### Análisis
 
 El código del análisis se encuentra en el archivo `analysis.qmd`. 
