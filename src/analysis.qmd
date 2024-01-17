@@ -151,7 +151,10 @@ or_values <- conf_int_values <- vector("list", length(list_models))
 for (i in seq_along(list_models)) {
   or_values[[i]] <- exp(coef(list_models[[i]]))[2] # OR of specialty
   conf_int_values[[i]] <- exp(
-    confint(list_models[[i]], level = 1 - p_value_corrected)[2, ] # Confidence interval of specialty
+    suppressMessages(
+      # Confidence interval of specialty
+      confint(list_models[[i]], level = 1 - p_value_corrected)[2, ]
+    )
   )
 }
 df_res$or_values <- or_values
@@ -171,6 +174,11 @@ Ahora creamos una tabla con los resultados obtenidos. Esta tabla tiene las sigui
 - ¿Valor de p significativo? (inferior a valor de p corregido por Bonferroni)
 
 ```{r}
+i <- order(df_res$p_values)
+df_res <- df_res[i, ]
+df_res$or_values <- unlist(df_res$or_values)
+df_res$conf_int_lower <- unlist(lapply(df_res$conf_int_values, \(x) x[1]))
+df_res$conf_int_upper <- unlist(lapply(df_res$conf_int_values, \(x) x[2]))
 df_res
 ```
 
@@ -237,6 +245,20 @@ ggplot(p_data) +
   labs(x = "Año", y = "Proporción de mujeres", color = "Tipo de especialidad")
 ```
 
+Los mismos dos gráficos previos, pero agrupados en dos subgrupos (especialidades clínicas vs. quirúrgicas).
+
+```{r}
+x <- dat
+x$especialidad_quirurgica <- ifelse(
+  x$especialidad_quirurgica == 1, "Quirúrgica", "Clínica"
+)
+ggplot(x) +
+  geom_bar(aes(year, fill = factor(
+    especialidad_quirurgica, levels = c("Quirúrgica", "Clínica")
+  ))) +
+  labs(x = "Año", y = "Número de postulantes", fill = "Tipo de especialidad")
+```
+
 ```{r}
 # Separado en 2 subgrupos
 p_specialty_types <- dat %>%
@@ -258,18 +280,79 @@ ggplot(p_data) +
 
 ```
 
+Preferencias de hombres y mujeres por especialidades
+
+```{r}
+x <- dat
+x$especialidad_quirurgica <- ifelse(
+  dat$especialidad_quirurgica == 1, "Quirúrgica", "Clínica"
+)
+
+# Mujeres
+ggplot(x[x$genero == 1, ]) +
+  geom_bar(aes(year, fill = factor(
+    especialidad_quirurgica, levels = c("Quirúrgica", "Clínica")
+  ))) +
+  labs(x = "Año", y = "Número de postulantes", fill = "Tipo de especialidad")
+# Hombres
+ggplot(x[x$genero == 0, ]) +
+  geom_bar(aes(year, fill = factor(
+    especialidad_quirurgica, levels = c("Quirúrgica", "Clínica")
+  ))) +
+  labs(x = "Año", y = "Número de postulantes", fill = "Tipo de especialidad")
+```
+
+Esto y los porcentajes se expresa mejor en una tabla comparativa entre hombres y mujeres con la siguiente estructura:
+
+- Años
+- Hombres vs. Mujeres
+  - Especialidad clínica vs. quirúrgica
+
+```{r}
+dat %>% group_by(year, genero, especialidad_quirurgica) %>% count()
+```
+
 ### Modelo estadístico
 
 Para el estudio de la tendencia se puede realizar un modelo de regresión logística (variable dependiente: género, variable independiente: tiempo).
 
+En primer lugar se realiza un modelo simple para demostrar que el género es alterado por el tiempo (años).
+
 ```{r}
 x <- dat[!is.na(dat$genero), ]
-m1 <- glm(genero ~ year, family = "binomial", data = dat)
-summary(m1)
-round(cbind(exp(coef(m1)), exp(confint((m1)))), 2)
+model <- glm(genero ~ year, family = "binomial", data = dat)
+summary(model)
+round(cbind(exp(coef(model)), exp(confint(model))), 2)
+```
+
+Del mismo modo, se podría realizar un modelo similar agregando variables para ajustar los resultados.
+
+```{r}
+x <- dat[!is.na(dat$genero), ]
+model <- glm(genero ~ year + especialidad, family = "binomial", data = dat)
+model_summary <- summary(model)
+
+model_summary$coefficients[2, "Pr(>|z|)"] # adjusted p-value of year
+# ... and the OR + confidence interval
+round(cbind(exp(coef(model)[2]), exp(confint(model, parm = 2))), digits = 2)
 ```
 
 También se podría usar un modelo de regresión logística estudiando la modificación de efecto ocasionada por las distintas especialidades o tipos de especialidades.
+
+```{r}
+x <- dat[!is.na(dat$genero), ]
+model <- glm(genero ~ year * especialidad, family = "binomial", data = dat)
+model_summary <- summary(model)
+```
+
+De forma simplificada se podría usar especialidades clínicas vs. quirúrgicas.
+
+```{r}
+x <- dat[!is.na(dat$genero), ]
+model <- glm(genero ~ year * especialidad_quirurgica, family = "binomial", data = dat)
+model_summary <- summary(model)
+round(cbind(exp(coef(model)), exp(confint(model))), 2)
+```
 
 # Análisis: ingresantes
 
@@ -385,6 +468,20 @@ ggplot(p_data) +
   labs(x = "Año", y = "Proporción de mujeres", color = "Tipo de especialidad")
 ```
 
+Lo mismo, separado solamente en especialidades quirúrgicas vs. clínicas.
+
+```{r}
+x$especialidad_quirurgica <- ifelse(
+  x$especialidad_quirurgica == 1, "Quirúrgica", "Clínica"
+)
+ggplot(x) +
+  geom_bar(aes(year, fill = factor(
+    especialidad_quirurgica, levels = c("Quirúrgica", "Clínica")
+  ))) +
+  labs(x = "Año", y = "Número de postulantes", fill = "Tipo de especialidad")
+```
+
+
 ```{r}
 # Separado en 2 subgrupos
 p_specialty_types <- dat %>%
@@ -406,11 +503,43 @@ ggplot(p_data) +
 
 ```
 
+## Comparación en los ingresantes hombres vs. mujeres
 
-## Porcentaje de ingresantes (hombres vs. mujeres)
+Esto se puede representar mejor en una tabla comparativa con las siguientes columnas:
+
+- Año
+- Género (hombre vs. mujeres)
+  - Número de postulantes
+  - Número de ingresantes
+  - Porcentaje de ingresantes (del género en cuestión)
 
 ```{r}
+dat %>% group_by(year, genero, ingreso) %>% count()
+```
 
+## Prueba estadística
+
+Probar estadísticamente si la tendencia de género se conserva también en las distintas especialidades.
+
+```{r}
+# Hacer lo mismo que para los postulantes solo que filtrando
+# e incluyendo solo ingresantes
+```
+
+Además, también se puede corroborar si hay diferencias estadísticamente significativas en el ingreso de mujeres y hombres a las distintas especialidades. Para esto se puede hacer una regresión logística en la que el outcome sería el ingreso y los predictors el género y el año (para ajustar).
+
+```{r}
+# Modelo simple 
+x <- dat[!is.na(dat$genero), ]
+model <- glm(ingreso ~ genero, family = "binomial", data = dat)
+model_summary <- summary(model)
+round(cbind(exp(coef(model)), exp(confint(model))), 2)
+
+# Agregando el año
+x <- dat[!is.na(dat$genero), ]
+model <- glm(ingreso ~ genero + year, family = "binomial", data = dat)
+model_summary <- summary(model)
+round(cbind(exp(coef(model)), exp(confint(model))), 2)
 ```
 
 # Análisis: especialidades vs. subespecialidades
