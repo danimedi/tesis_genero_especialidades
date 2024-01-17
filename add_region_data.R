@@ -9,7 +9,7 @@ sort(table(dat$universidad)) # Visualize universities
 lima_region <- c(
   "UPC", "Lima - UNFV", "UCS", "UNFV - Lima", "Lima - UPCH", "UPSJB",
   "Lima - URP", "USP", "Lima - UNMSM", "URP - Lima", "UCSUR", "UNMSM - Lima",
-  "UNFV", "UPCH", "USMP", "URP", "UNMSM"
+  "UNFV", "UPCH", "USMP", "URP", "UNMSM", "CONAREME"
 )
 norte_region <- c(
   "Norte - UNC", "NORTE", "UNC - Cajamarca", "Norte - UPAO", "UCV",
@@ -23,7 +23,6 @@ sur_region <- c(
   "SUR", "Sur - UNSA", "UCSM - Arequipa", "UPT", "UNA", "UNSAAC", "UCSM", "UNSA"
 )
 oriente_region <- c("Oriente - UNAP", "UNAP - Iquitos", "UNAP")
-otros <- c("CONAREME")
 
 dat$region <- ifelse(
   dat$universidad %in% lima_region,
