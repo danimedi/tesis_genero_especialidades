@@ -226,7 +226,7 @@ ggplot(x) +
   ) + labs(x = "Año", y = "Número de postulantes", fill = "Tipo de especialidad")
 ```
 
-Otro gráfico similar, pero con líneas.
+Otro gráfico similar al primero, pero con líneas.
 
 ```{r}
 # Separado en 4 subgrupos
@@ -601,22 +601,126 @@ ggplot(p_data) +
 
 ```
 
+# Análisis: región
 
-# Análisis: universidades
-
-Tabla descriptiva de los datos de acuerdo a las universidades.
+Primero, visualizar distribución de género general en las distintas regiones.
 
 ```{r}
-dat %>%
-  group_by(universidad) %>%
+x <- dat
+x$genero_factor <- ifelse(
+  is.na(x$genero),
+  "No género asignado",
+  ifelse(
+    x$genero == 1,
+    "Femenino",
+    "Masculino"
+  )
+)
+x$genero_factor <- factor(
+  x$genero_factor,
+  levels = c("No género asignado", "Masculino", "Femenino")
+)
+
+x$region <- factor(
+  x$region,
+  levels = c("Lima", "Norte", "Sur", "Centro", "Oriente", "CONAREME")
+)
+
+ggplot(x) +
+  geom_bar(aes(region, fill = genero_factor)) +
+  labs(x = "Región", y = "Número de postulantes", fill = "Género") +
+  scale_fill_manual(values = c("No género asignado" = "grey80", "Masculino" = "#619CFF", "Femenino" = "#F8766D"))
+```
+
+Visualizar estos datos en una tabla con las siguientes columnas:
+
+- Año
+- Región
+  - Número de postulantes (total)
+  - Número de postulantes con género asignado
+  - Número de mujeres y hombre (y porcentajes)
+
+```{r}
+dat %>% group_by(year, region) %>%
   summarize(
-    n_postulantes = length(universidad),
+    n_postulantes = length(year),
     n_genero = sum(!is.na(genero)),
-    p_genero = sum(!is.na(genero)) / length(universidad),
+    p_genero = sum(!is.na(genero)) / length(year),
     n_mujeres = sum(genero == 1, na.rm = TRUE),
     p_mujeres = sum(genero == 1, na.rm = TRUE) / sum(!is.na(genero)),
     n_hombres = sum(genero == 0, na.rm = TRUE),
     p_hombres = sum(genero == 0, na.rm = TRUE) / sum(!is.na(genero))
   )
+```
+
+## Gráficos por región
+
+Usar gráficos de barras y líneas para representar la distribución de género y tendencias agrupadas por región (como se hizo anteriormente).
+
+```{r}
+x <- dat
+
+x$region <- factor(
+  x$region,
+  levels = c("Oriente", "Centro", "Norte", "Sur", "Lima")
+)
+
+ggplot(x) +
+  geom_bar(aes(year, fill = region)) +
+  labs(x = "Año", y = "Número de postulantes", fill = "Región")
+```
+
+```{r}
+p_region <- dat %>%
+  group_by(year, region) %>%
+  summarize(p = mean(genero, na.rm = TRUE))
+
+p_years <- dat %>%
+  group_by(year) %>%
+  summarize(p_total = mean(genero, na.rm = TRUE))
+
+p_data <- left_join(p_region, p_years, by = c("year"))
+
+ggplot(p_data) +
+  geom_line(aes(year, p_total)) +
+  geom_line(aes(year, p, color = as.factor(region))) +
+  scale_x_continuous(breaks = seq(2013, 2023, by = 1)) +
+  labs(x = "Año", y = "Proporción de mujeres", color = "Región")
+```
+
+## Prueba estadística
+
+Ahora, se podría realizar una prueba estadística para determinar si existen diferencias significativas en la distribución de género en las distintas regiones (independientemente del tiempo y ajustado al tiempo).
+
+```{r}
+# Modelo simple 
+x <- dat[!is.na(dat$genero), ]
+model <- glm(genero ~ region, family = "binomial", data = dat)
+model_summary <- summary(model)
+round(cbind(exp(coef(model)), exp(confint(model))), 2)
+
+# Agregando el año
+x <- dat[!is.na(dat$genero), ]
+model <- glm(genero ~ region + year, family = "binomial", data = dat)
+model_summary <- summary(model)
+round(cbind(exp(coef(model)), exp(confint(model))), 2)
+```
+
+En cuanto al análisis de la modificación de efecto (del tiempo) por la región.
+
+```{r}
+x <- dat[!is.na(dat$genero), ]
+model <- glm(genero ~ year * region, family = "binomial", data = dat)
+model_summary <- summary(model)
+```
+
+Si se realiza un modelo estadístico final, ajustando por región y especialidades.
+
+```{r}
+x <- dat[!is.na(dat$genero), ]
+model <- glm(genero ~ year + region + especialidad, family = "binomial", data = dat)
+model_summary <- summary(model)
+model_summary$coefficients[2, ]
+round(cbind(exp(coef(model)[2]), exp(confint(model, parm = 2))), digits = 2)
 ```
 
