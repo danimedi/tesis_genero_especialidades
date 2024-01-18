@@ -92,7 +92,7 @@ write.table(res, here("output/tabla_2.txt"), sep = "\t", row.names = FALSE)
 
 El código a continuación genera gráficos de la distribución de género de cada una de las especialidades.
 
-```{r}
+```{r graphs-1}
 i_no_gender <- is.na(dat$genero)
 x <- dat[!i_no_gender, ] %>%
   group_by(year, especialidad) %>%
@@ -173,20 +173,21 @@ Ahora creamos una tabla con los resultados obtenidos. Esta tabla tiene las sigui
 - Valor de p
 - ¿Valor de p significativo? (inferior a valor de p corregido por Bonferroni)
 
-```{r}
+```{r tabla-3}
 i <- order(df_res$p_values)
 df_res <- df_res[i, ]
 df_res$or_values <- unlist(df_res$or_values)
 df_res$conf_int_lower <- unlist(lapply(df_res$conf_int_values, \(x) x[1]))
 df_res$conf_int_upper <- unlist(lapply(df_res$conf_int_values, \(x) x[2]))
-df_res
+df_res <- df_res[, colnames(df_res) != "conf_int_values"]
+write.table(df_res, here("output/tabla_3.txt"), sep = "\t", row.names = FALSE)
 ```
 
 # Estudio de tendencias
 
 Algunos gráficos ...
 
-```{r}
+```{r graph-2}
 x <- dat
 x$genero_factor <- ifelse(
   is.na(x$genero),
@@ -203,11 +204,13 @@ ggplot(x) +
   geom_bar(aes(year, fill = genero_factor)) +
   labs(x = "Año", y = "Número de postulantes", fill = "Género") +
   scale_fill_manual(values = c("No género asignado" = "grey80", "Masculino" = "#619CFF", "Femenino" = "#F8766D"))
+
+ggsave(here("output/graph_2.png"))
 ```
 
 Similar pero agrupados por especialidades.
 
-```{r}
+```{r graph-3}
 x <- dat
 x$especialidad_tipo <- ifelse(
   dat$especialidad_tipo == "laboratorio_diagnostica", "De laboratorio y diagnóstica",
@@ -224,11 +227,13 @@ ggplot(x) +
       "De laboratorio y diagnóstica", "Médico-quirúrgica", "Quirúrgica", "Clínica")
     ))
   ) + labs(x = "Año", y = "Número de postulantes", fill = "Tipo de especialidad")
+
+ggsave(here("output/graph_3.png"))
 ```
 
 Otro gráfico similar al primero, pero con líneas.
 
-```{r}
+```{r graph-4}
 # Separado en 4 subgrupos
 p_specialty_types <- x %>%
   group_by(year, especialidad_tipo) %>%
@@ -243,11 +248,13 @@ ggplot(p_data) +
   geom_line(aes(year, p, color = especialidad_tipo)) +
   scale_x_continuous(breaks = seq(2013, 2023, by = 1)) +
   labs(x = "Año", y = "Proporción de mujeres", color = "Tipo de especialidad")
+
+ggsave(here("output/graph_4.png"))
 ```
 
 Los mismos dos gráficos previos, pero agrupados en dos subgrupos (especialidades clínicas vs. quirúrgicas).
 
-```{r}
+```{r graph-5}
 x <- dat
 x$especialidad_quirurgica <- ifelse(
   x$especialidad_quirurgica == 1, "Quirúrgica", "Clínica"
@@ -257,9 +264,11 @@ ggplot(x) +
     especialidad_quirurgica, levels = c("Quirúrgica", "Clínica")
   ))) +
   labs(x = "Año", y = "Número de postulantes", fill = "Tipo de especialidad")
+
+ggsave(here("output/graph_5.png"))
 ```
 
-```{r}
+```{r graph-6}
 # Separado en 2 subgrupos
 p_specialty_types <- dat %>%
   group_by(year, especialidad_quirurgica) %>%
@@ -278,11 +287,12 @@ ggplot(p_data) +
   scale_x_continuous(breaks = seq(2013, 2023, by = 1)) +
   labs(x = "Año", y = "Proporción de mujeres", color = "Tipo de especialidad")
 
+ggsave(here("output/graph_6.png"))
 ```
 
 Preferencias de hombres y mujeres por especialidades
 
-```{r}
+```{r graph-7}
 x <- dat
 x$especialidad_quirurgica <- ifelse(
   dat$especialidad_quirurgica == 1, "Quirúrgica", "Clínica"
@@ -294,12 +304,15 @@ ggplot(x[x$genero == 1, ]) +
     especialidad_quirurgica, levels = c("Quirúrgica", "Clínica")
   ))) +
   labs(x = "Año", y = "Número de postulantes", fill = "Tipo de especialidad")
+ggsave(here("output/graph_7-mujeres.png"))
+
 # Hombres
 ggplot(x[x$genero == 0, ]) +
   geom_bar(aes(year, fill = factor(
     especialidad_quirurgica, levels = c("Quirúrgica", "Clínica")
   ))) +
   labs(x = "Año", y = "Número de postulantes", fill = "Tipo de especialidad")
+ggsave(here("output/graph_7-hombres.png"))
 ```
 
 Esto y los porcentajes se expresa mejor en una tabla comparativa entre hombres y mujeres con la siguiente estructura:
@@ -308,8 +321,22 @@ Esto y los porcentajes se expresa mejor en una tabla comparativa entre hombres y
 - Hombres vs. Mujeres
   - Especialidad clínica vs. quirúrgica
 
-```{r}
-dat %>% group_by(year, genero, especialidad_quirurgica) %>% count()
+```{r tabla-4}
+# I am removing the missing gender data
+x <- dat %>%
+  filter(!is.na(genero)) %>%
+  group_by(year, genero, especialidad_quirurgica) %>%
+  count()
+x
+write.table(x, here("output/tabla_4-counts.txt"), sep = "\t", row.names = FALSE)
+
+# Percentages
+y <- dat %>%
+  filter(!is.na(genero)) %>%
+  group_by(year, genero) %>%
+  summarize(p_quirugica = mean(especialidad_quirurgica))
+y
+write.table(y, here("output/tabla_4-percentages.txt"), sep = "\t", row.names = FALSE)
 ```
 
 ### Modelo estadístico
