@@ -4,6 +4,10 @@
 
 Los datos originales se obtuvieron de la [página web de CONAREME](https://www.conareme.org.pe/web/). Estos datos se encuentran en formato PDF, estos archivos fueron colocados en una [carpeta Drive](https://drive.google.com/drive/folders/1e4MtL0uBSwDoeJs7bZjQH9q3Dop9anFb?usp=sharing). Se usó el programa [Tabula](https://tabula.technology/) para extraer las tablas en archivos CSV. Estos archivos extraidos también se encuentran en la misma [carpeta Drive](https://drive.google.com/drive/folders/1e4MtL0uBSwDoeJs7bZjQH9q3Dop9anFb?usp=sharing).
 
+### Diccionario de género
+
+Se usó una base de datos para obtener el género a partir del primer nombre. Los links y los detalles de la obtención de esta base de datos se encuentran en el archivo con el código con el que se arma esta base de datos, que se encuentra en `build_gender_dictionary.R`.
+
 ### Extracción y limpieza
 
 Estos archivos CSV fueron usados como fuente de datos. En primer lugar se seleccionaron las columnas con información relevante para la investigación. Para esto se usó el código del archivo `simplify_raw_csv.R`.
