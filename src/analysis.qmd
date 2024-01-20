@@ -348,8 +348,9 @@ En primer lugar se realiza un modelo simple para demostrar que el género es alt
 ```{r}
 x <- dat[!is.na(dat$genero), ]
 model <- glm(genero ~ year, family = "binomial", data = dat)
-summary(model)
-round(cbind(exp(coef(model)), exp(confint(model))), 2)
+model_summary <- summary(model)
+model_summary$coefficients[2, 4] # p-value
+round(cbind(exp(coef(model)), exp(confint(model))), 3)
 ```
 
 Del mismo modo, se podría realizar un modelo similar agregando variables para ajustar los resultados.
@@ -361,7 +362,8 @@ model_summary <- summary(model)
 
 model_summary$coefficients[2, "Pr(>|z|)"] # adjusted p-value of year
 # ... and the OR + confidence interval
-round(cbind(exp(coef(model)[2]), exp(confint(model, parm = 2))), digits = 2)
+exp(coef(model)[2])
+exp(confint(model, parm = 2))
 ```
 
 También se podría usar un modelo de regresión logística estudiando la modificación de efecto ocasionada por las distintas especialidades o tipos de especialidades.
@@ -370,6 +372,10 @@ También se podría usar un modelo de regresión logística estudiando la modifi
 x <- dat[!is.na(dat$genero), ]
 model <- glm(genero ~ year * especialidad, family = "binomial", data = dat)
 model_summary <- summary(model)
+
+p_value_corrected <- 0.05 / length(unique(x$especialidad))
+i <- model_summary$coefficients[, 4] < 0.05
+model_summary$coefficients[i, ]
 ```
 
 De forma simplificada se podría usar especialidades clínicas vs. quirúrgicas.
@@ -385,7 +391,7 @@ round(cbind(exp(coef(model)), exp(confint(model))), 2)
 
 Tabla descriptiva de datos de ingresantes solamente.
 
-```{r}
+```{r tabla-5}
 dat_ingresantes <- filter(dat, ingreso == 1)
 
 res <- dat_ingresantes %>%
@@ -400,12 +406,12 @@ res <- dat_ingresantes %>%
     p_hombres = sum(genero == 0, na.rm = TRUE) / sum(!is.na(genero))
   )
 res
-write.table(res, here("output/tabla_3.txt"), sep = "\t", row.names = FALSE)
+write.table(res, here("output/tabla_5.txt"), sep = "\t", row.names = FALSE)
 ```
 
 Datos de especialidades de los ingresantes solamente.
 
-```{r}
+```{r tabla-6}
 dat_ingresantes <- filter(dat, ingreso == 1)
 
 res <- dat_ingresantes %>%
@@ -420,25 +426,27 @@ res <- dat_ingresantes %>%
     p_hombres = sum(genero == 0, na.rm = TRUE) / sum(!is.na(genero))
   )
 res
-write.table(res, here("output/tabla_4.txt"), sep = "\t", row.names = FALSE)
+write.table(res, here("output/tabla_6.txt"), sep = "\t", row.names = FALSE)
 ```
 
 ## Gráficos de ingresantes solamente
 
 Algún gráfico que muestre la magnitud de la diferencia de postulantes e ingresantes.
 
-```{r}
+```{r graph-8}
 x <- dat[dat$year >= 2016, ]
 x$ingreso <- ifelse(x$ingreso == 1, "Ingresó", "No ingresó")
 
 ggplot(x) +
   geom_bar(aes(year, fill = factor(ingreso, levels = c("No ingresó", "Ingresó"))), position = "dodge") +
   labs(fill = "Resultado de postulación", x = "Año", y = "Número de postulantes")
+
+ggsave(here("output/graph_8.png"))
 ```
 
 Hacer los mismos gráficos
 
-```{r}
+```{r graph-9}
 dat_ingresantes <- filter(dat, ingreso == 1)
 
 x <- dat_ingresantes
@@ -457,9 +465,11 @@ ggplot(x) +
   geom_bar(aes(year, fill = genero_factor)) +
   labs(x = "Año", y = "Número de ingresantes", fill = "Género") +
   scale_fill_manual(values = c("No género asignado" = "grey80", "Masculino" = "#619CFF", "Femenino" = "#F8766D"))
+
+ggsave(here("output/graph_9.png"))
 ```
 
-```{r}
+```{r graph-10}
 x <- dat_ingresantes
 x$especialidad_tipo <- ifelse(
   dat_ingresantes$especialidad_tipo == "laboratorio_diagnostica", "De laboratorio y diagnóstica",
@@ -476,9 +486,11 @@ ggplot(x) +
       "De laboratorio y diagnóstica", "Médico-quirúrgica", "Quirúrgica", "Clínica")
     ))
   ) + labs(x = "Año", y = "Número de ingresantes", fill = "Tipo de especialidad")
+
+ggsave(here("output/graph_10.png"))
 ```
 
-```{r}
+```{r graph-11}
 # Separado en 4 subgrupos
 p_specialty_types <- x %>%
   group_by(year, especialidad_tipo) %>%
@@ -493,11 +505,13 @@ ggplot(p_data) +
   geom_line(aes(year, p, color = especialidad_tipo)) +
   scale_x_continuous(breaks = seq(2013, 2023, by = 1)) +
   labs(x = "Año", y = "Proporción de mujeres", color = "Tipo de especialidad")
+
+ggsave(here("output/graph_11.png"))
 ```
 
 Lo mismo, separado solamente en especialidades quirúrgicas vs. clínicas.
 
-```{r}
+```{r graph-12}
 x$especialidad_quirurgica <- ifelse(
   x$especialidad_quirurgica == 1, "Quirúrgica", "Clínica"
 )
@@ -505,17 +519,21 @@ ggplot(x) +
   geom_bar(aes(year, fill = factor(
     especialidad_quirurgica, levels = c("Quirúrgica", "Clínica")
   ))) +
-  labs(x = "Año", y = "Número de postulantes", fill = "Tipo de especialidad")
+  labs(x = "Año", y = "Número de ingresantes", fill = "Tipo de especialidad")
+
+ggsave(here("output/graph_12.png"))
 ```
 
 
-```{r}
+```{r graph-13}
+x <- filter(dat, year >= 2016, ingreso == 1)
+
 # Separado en 2 subgrupos
-p_specialty_types <- dat %>%
+p_specialty_types <- x %>%
   group_by(year, especialidad_quirurgica) %>%
   summarize(p = mean(genero, na.rm = TRUE))
 
-p_years <- dat %>% group_by(year) %>% summarize(p_total = mean(genero, na.rm = TRUE))
+p_years <- x %>% group_by(year) %>% summarize(p_total = mean(genero, na.rm = TRUE))
 
 p_data <- left_join(p_specialty_types, p_years, by = c("year"))
 p_data$especialidad_quirurgica <- ifelse(
@@ -528,6 +546,7 @@ ggplot(p_data) +
   scale_x_continuous(breaks = seq(2013, 2023, by = 1)) +
   labs(x = "Año", y = "Proporción de mujeres", color = "Tipo de especialidad")
 
+ggsave(here("output/graph_13.png"))
 ```
 
 ## Comparación en los ingresantes hombres vs. mujeres
@@ -540,17 +559,38 @@ Esto se puede representar mejor en una tabla comparativa con las siguientes colu
   - Número de ingresantes
   - Porcentaje de ingresantes (del género en cuestión)
 
-```{r}
-dat %>% group_by(year, genero, ingreso) %>% count()
+```{r tabla-7}
+x <- dat %>% group_by(year, genero, ingreso) %>% count()
+x
+write.table(x, here("output/tabla_7.txt"), sep = "\t", row.names = FALSE)
+
+y <- dat %>%
+  filter(!is.na(genero)) %>%
+  group_by(year, genero) %>%
+  summarize(p_quirugica = mean(ingreso))
+y
+write.table(y, here("output/tabla_7-percentages.txt"), sep = "\t", row.names = FALSE)
 ```
 
 ## Prueba estadística
 
-Probar estadísticamente si la tendencia de género se conserva también en las distintas especialidades.
+Probar estadísticamente si la tendencia de género se conserva también en las distintas especialidades. Hacer lo mismo que al inicio en el estudio de tendencias, solo que exclusivamente para los ingresantes
 
 ```{r}
-# Hacer lo mismo que para los postulantes solo que filtrando
-# e incluyendo solo ingresantes
+x <- dat[!is.na(dat$genero), ]
+x <- dat[dat$ingreso == 1, ]
+
+model <- glm(genero ~ year, family = "binomial", data = dat)
+model_summary <- summary(model)
+model_summary$coefficients[2, 4] # p-value
+round(cbind(exp(coef(model)), exp(confint(model))), 3)
+
+model <- glm(genero ~ year + especialidad, family = "binomial", data = dat)
+model_summary <- summary(model)
+model_summary$coefficients[2, "Pr(>|z|)"] # adjusted p-value of year
+# ... and the OR + confidence interval
+exp(coef(model)[2])
+exp(confint(model, parm = 2))
 ```
 
 Además, también se puede corroborar si hay diferencias estadísticamente significativas en el ingreso de mujeres y hombres a las distintas especialidades. Para esto se puede hacer una regresión logística en la que el outcome sería el ingreso y los predictors el género y el año (para ajustar).
@@ -560,12 +600,14 @@ Además, también se puede corroborar si hay diferencias estadísticamente signi
 x <- dat[!is.na(dat$genero), ]
 model <- glm(ingreso ~ genero, family = "binomial", data = dat)
 model_summary <- summary(model)
+model_summary$coefficients[2, 4] # p-value
 round(cbind(exp(coef(model)), exp(confint(model))), 2)
 
 # Agregando el año
 x <- dat[!is.na(dat$genero), ]
 model <- glm(ingreso ~ genero + year, family = "binomial", data = dat)
 model_summary <- summary(model)
+model_summary$coefficients[2, 4] # p-value
 round(cbind(exp(coef(model)), exp(confint(model))), 2)
 ```
 
