@@ -347,7 +347,7 @@ En primer lugar se realiza un modelo simple para demostrar que el género es alt
 
 ```{r}
 x <- dat[!is.na(dat$genero), ]
-model <- glm(genero ~ year, family = "binomial", data = dat)
+model <- glm(genero ~ year, family = "binomial", data = x)
 model_summary <- summary(model)
 model_summary$coefficients[2, 4] # p-value
 round(cbind(exp(coef(model)), exp(confint(model))), 3)
@@ -357,7 +357,7 @@ Del mismo modo, se podría realizar un modelo similar agregando variables para a
 
 ```{r}
 x <- dat[!is.na(dat$genero), ]
-model <- glm(genero ~ year + especialidad, family = "binomial", data = dat)
+model <- glm(genero ~ year + especialidad, family = "binomial", data = x)
 model_summary <- summary(model)
 
 model_summary$coefficients[2, "Pr(>|z|)"] # adjusted p-value of year
@@ -366,17 +366,87 @@ exp(coef(model)[2])
 exp(confint(model, parm = 2))
 ```
 
-También se podría usar un modelo de regresión logística estudiando la modificación de efecto ocasionada por las distintas especialidades o tipos de especialidades.
+También se podría usar un modelo de regresión logística estudiando la modificación de efecto ocasionada por las distintas especialidades o tipos de especialidades. Para esto se podría realizar un modelo estadístico por cada especialidad comparando esta con el resto de especialidades.
 
 ```{r}
 x <- dat[!is.na(dat$genero), ]
-model <- glm(genero ~ year * especialidad, family = "binomial", data = dat)
+model <- glm(genero ~ year * especialidad, family = "binomial", data = x)
 model_summary <- summary(model)
 
 p_value_corrected <- 0.05 / length(unique(x$especialidad))
 i <- model_summary$coefficients[, 4] < 0.05
 model_summary$coefficients[i, ]
 ```
+
+```{r}
+x <- dat[!is.na(dat$genero), ]
+
+specialties <- unique(x$especialidad)
+list_models <- vector("list", length(specialties))
+for (i in seq_along(specialties)) {
+  list_models[[i]] <- glm(
+    genero ~ year * ifelse(
+      especialidad == specialties[[i]],
+      1, 0
+    ),
+    data = x
+  )
+}
+list_models_summary <- lapply(list_models, summary)
+names(list_models_summary) <- specialties
+list_models_summary[1]
+
+df_res <- data.frame("Especialidad" = specialties)
+
+vector("list", length(nrow(df_res))) ->
+  df_res$p_value_year ->
+  df_res$p_value_specialty ->
+  df_res$p_value_interaction
+
+for (i in seq_along(list_models)) {
+  summary_model <- summary(list_models[[i]])
+  df_res$p_value_year[[i]] <- summary_model$coefficients[2, 4]
+  df_res$p_value_specialty[[i]] <- summary_model$coefficients[3, 4]
+  if (nrow(summary_model$coefficients) < 4) {
+    df_res$p_value_interaction[[i]] <- NA
+  } else {
+    df_res$p_value_interaction[[i]] <- summary_model$coefficients[4, 4]
+  }
+}
+
+for (j in 2:ncol(df_res)) {
+  df_res[, j] <- unlist(df_res[, j])
+}
+
+# Bonferroni correction
+p_value_corrected <- 0.05 / nrow(df_res)
+
+# Specialties with statistical significance
+i <- df_res$p_value_specialty <= p_value_corrected
+specialties[i]
+
+# Interactions with statistical significance
+i <- df_res$p_value_interaction <= p_value_corrected
+specialties[i]
+
+
+
+# or_values <- conf_int_values <- vector("list", length(list_models))
+# for (i in seq_along(list_models)) {
+#   or_values[[i]] <- exp(coef(list_models[[i]]))[2] # OR of specialty
+#   conf_int_values[[i]] <- exp(
+#     suppressMessages(
+#       # Confidence interval of specialty
+#       confint(list_models[[i]], level = 1 - p_value_corrected)[2, ]
+#     )
+#   )
+# }
+# df_res$or_values <- or_values
+# df_res$conf_int_values <- conf_int_values
+
+
+```
+
 
 De forma simplificada se podría usar especialidades clínicas vs. quirúrgicas.
 
@@ -578,14 +648,14 @@ Probar estadísticamente si la tendencia de género se conserva también en las 
 
 ```{r}
 x <- dat[!is.na(dat$genero), ]
-x <- dat[dat$ingreso == 1, ]
+x <- x[x$ingreso == 1, ]
 
-model <- glm(genero ~ year, family = "binomial", data = dat)
+model <- glm(genero ~ year, family = "binomial", data = x)
 model_summary <- summary(model)
 model_summary$coefficients[2, 4] # p-value
 round(cbind(exp(coef(model)), exp(confint(model))), 3)
 
-model <- glm(genero ~ year + especialidad, family = "binomial", data = dat)
+model <- glm(genero ~ year + especialidad, family = "binomial", data = x)
 model_summary <- summary(model)
 model_summary$coefficients[2, "Pr(>|z|)"] # adjusted p-value of year
 # ... and the OR + confidence interval
@@ -598,14 +668,14 @@ Además, también se puede corroborar si hay diferencias estadísticamente signi
 ```{r}
 # Modelo simple 
 x <- dat[!is.na(dat$genero), ]
-model <- glm(ingreso ~ genero, family = "binomial", data = dat)
+x <- x[x$year >= 2016, ]
+model <- glm(ingreso ~ genero, family = "binomial", data = x)
 model_summary <- summary(model)
 model_summary$coefficients[2, 4] # p-value
 round(cbind(exp(coef(model)), exp(confint(model))), 2)
 
 # Agregando el año
-x <- dat[!is.na(dat$genero), ]
-model <- glm(ingreso ~ genero + year, family = "binomial", data = dat)
+model <- glm(ingreso ~ genero + year, family = "binomial", data = x)
 model_summary <- summary(model)
 model_summary$coefficients[2, 4] # p-value
 round(cbind(exp(coef(model)), exp(confint(model))), 2)
@@ -674,7 +744,7 @@ ggplot(p_data) +
 
 Primero, visualizar distribución de género general en las distintas regiones.
 
-```{r}
+```{r graph-14}
 x <- dat
 x$genero_factor <- ifelse(
   is.na(x$genero),
@@ -699,6 +769,8 @@ ggplot(x) +
   geom_bar(aes(region, fill = genero_factor)) +
   labs(x = "Región", y = "Número de postulantes", fill = "Género") +
   scale_fill_manual(values = c("No género asignado" = "grey80", "Masculino" = "#619CFF", "Femenino" = "#F8766D"))
+
+ggsave(here("output/graph_14.png"))
 ```
 
 Visualizar estos datos en una tabla con las siguientes columnas:
@@ -709,8 +781,8 @@ Visualizar estos datos en una tabla con las siguientes columnas:
   - Número de postulantes con género asignado
   - Número de mujeres y hombre (y porcentajes)
 
-```{r}
-dat %>% group_by(year, region) %>%
+```{r tabla-8}
+x <- dat %>% group_by(year, region) %>%
   summarize(
     n_postulantes = length(year),
     n_genero = sum(!is.na(genero)),
@@ -720,13 +792,16 @@ dat %>% group_by(year, region) %>%
     n_hombres = sum(genero == 0, na.rm = TRUE),
     p_hombres = sum(genero == 0, na.rm = TRUE) / sum(!is.na(genero))
   )
+x
+
+write.table(x, here("output/tabla_8.txt"), sep = "\t", row.names = FALSE)
 ```
 
 ## Gráficos por región
 
 Usar gráficos de barras y líneas para representar la distribución de género y tendencias agrupadas por región (como se hizo anteriormente).
 
-```{r}
+```{r graph-15}
 x <- dat
 
 x$region <- factor(
@@ -737,9 +812,11 @@ x$region <- factor(
 ggplot(x) +
   geom_bar(aes(year, fill = region)) +
   labs(x = "Año", y = "Número de postulantes", fill = "Región")
+
+ggsave(here("output/graph_15.png"))
 ```
 
-```{r}
+```{r graph-16}
 p_region <- dat %>%
   group_by(year, region) %>%
   summarize(p = mean(genero, na.rm = TRUE))
@@ -755,41 +832,221 @@ ggplot(p_data) +
   geom_line(aes(year, p, color = as.factor(region))) +
   scale_x_continuous(breaks = seq(2013, 2023, by = 1)) +
   labs(x = "Año", y = "Proporción de mujeres", color = "Región")
+
+ggsave(here("output/graph_16.png"))
 ```
 
 ## Prueba estadística
 
 Ahora, se podría realizar una prueba estadística para determinar si existen diferencias significativas en la distribución de género en las distintas regiones (independientemente del tiempo y ajustado al tiempo).
 
-```{r}
-# Modelo simple 
-x <- dat[!is.na(dat$genero), ]
-model <- glm(genero ~ region, family = "binomial", data = dat)
-model_summary <- summary(model)
-round(cbind(exp(coef(model)), exp(confint(model))), 2)
+Para esto se puede realizar una prueba estadística para cada una de las especialidades, para compararlas con el resto (distribución global).
 
-# Agregando el año
+```{r}
+# ---- Modelo sin incluir variable de tiempo (año) ----
+
 x <- dat[!is.na(dat$genero), ]
-model <- glm(genero ~ region + year, family = "binomial", data = dat)
-model_summary <- summary(model)
-round(cbind(exp(coef(model)), exp(confint(model))), 2)
+regions <- unique(x$region)
+list_models <- vector("list", length(regions))
+
+for (i in seq_along(regions)) {
+  list_models[[i]] <- glm(
+    genero ~ ifelse(
+      region == regions[[i]],
+      1, 0
+    ),
+    data = x
+  )
+}
+list_models_summary <- lapply(list_models, summary)
+names(list_models_summary) <- regions
+
+df_res <- data.frame("Región" = regions)
+df_res$p_values <- unlist(lapply(list_models_summary, \(x) x$coefficients[2, 4]))
+
+# Bonferroni correction
+p_value_corrected <- 0.05 / length(p_values)
+
+or_values <- conf_int_values <- vector("list", length(list_models))
+for (i in seq_along(list_models)) {
+  or_values[[i]] <- exp(coef(list_models[[i]]))[2] # OR of specialty
+  conf_int_values[[i]] <- exp(
+    suppressMessages(
+      # Confidence interval of specialty
+      confint(list_models[[i]], level = 1 - p_value_corrected)[2, ]
+    )
+  )
+}
+df_res$or_values <- unlist(or_values)
+df_res$conf_int_values <- conf_int_values
+
+i <- df_res$p_values <= p_value_corrected
+df_res$p_value_significant <- i
+regions[i]
+
+df_res$conf_int_lower <- unlist(lapply(df_res$conf_int_values, \(x) x[1]))
+df_res$conf_int_upper <- unlist(lapply(df_res$conf_int_values, \(x) x[2]))
+df_res <- df_res[, colnames(df_res) != "conf_int_values"]
+df_res
 ```
 
-En cuanto al análisis de la modificación de efecto (del tiempo) por la región.
+```{r tabla-9}
+# ---- Modelo incluyendo (ajustado a) la variable tiempo (año) ----
+
+x <- dat[!is.na(dat$genero), ]
+regions <- unique(x$region)
+list_models <- vector("list", length(regions))
+
+for (i in seq_along(regions)) {
+  list_models[[i]] <- glm(
+    genero ~ ifelse(
+      region == regions[[i]],
+      1, 0
+    ) + year,
+    data = x
+  )
+}
+list_models_summary <- lapply(list_models, summary)
+names(list_models_summary) <- regions
+
+df_res <- data.frame("Región" = regions)
+df_res$p_values <- unlist(lapply(list_models_summary, \(x) x$coefficients[2, 4]))
+
+# Bonferroni correction
+p_value_corrected <- 0.05 / length(p_values)
+
+or_values <- conf_int_values <- vector("list", length(list_models))
+for (i in seq_along(list_models)) {
+  or_values[[i]] <- exp(coef(list_models[[i]]))[2] # OR of specialty
+  conf_int_values[[i]] <- exp(
+    suppressMessages(
+      # Confidence interval of specialty
+      confint(list_models[[i]], level = 1 - p_value_corrected)[2, ]
+    )
+  )
+}
+df_res$or_values <- unlist(or_values)
+df_res$conf_int_values <- conf_int_values
+
+i <- df_res$p_values <= p_value_corrected
+df_res$p_value_significant <- i
+regions[i]
+
+df_res$conf_int_lower <- unlist(lapply(df_res$conf_int_values, \(x) x[1]))
+df_res$conf_int_upper <- unlist(lapply(df_res$conf_int_values, \(x) x[2]))
+df_res <- df_res[, colnames(df_res) != "conf_int_values"]
+df_res
+
+write.table(df_res, here("output/tabla_9.txt"), sep = "\t", row.names = FALSE)
+```
 
 ```{r}
+# ---- Modelo excluyendo a la región Oriente ----
+
 x <- dat[!is.na(dat$genero), ]
-model <- glm(genero ~ year * region, family = "binomial", data = dat)
-model_summary <- summary(model)
+x <- dat[dat$region != "Oriente", ]
+
+regions <- unique(x$region)
+list_models <- vector("list", length(regions))
+
+for (i in seq_along(regions)) {
+  list_models[[i]] <- glm(
+    genero ~ ifelse(
+      region == regions[[i]],
+      1, 0
+    ) + year,
+    data = x
+  )
+}
+list_models_summary <- lapply(list_models, summary)
+names(list_models_summary) <- regions
+
+df_res <- data.frame("Región" = regions)
+df_res$p_values <- unlist(lapply(list_models_summary, \(x) x$coefficients[2, 4]))
+
+# Bonferroni correction
+p_value_corrected <- 0.05 / length(p_values)
+
+or_values <- conf_int_values <- vector("list", length(list_models))
+for (i in seq_along(list_models)) {
+  or_values[[i]] <- exp(coef(list_models[[i]]))[2] # OR of specialty
+  conf_int_values[[i]] <- exp(
+    suppressMessages(
+      # Confidence interval of specialty
+      confint(list_models[[i]], level = 1 - p_value_corrected)[2, ]
+    )
+  )
+}
+df_res$or_values <- unlist(or_values)
+df_res$conf_int_values <- conf_int_values
+
+i <- df_res$p_values <= p_value_corrected
+df_res$p_value_significant <- i
+regions[i]
+
+df_res$conf_int_lower <- unlist(lapply(df_res$conf_int_values, \(x) x[1]))
+df_res$conf_int_upper <- unlist(lapply(df_res$conf_int_values, \(x) x[2]))
+df_res <- df_res[, colnames(df_res) != "conf_int_values"]
+df_res
+```
+
+
+```{r}
+# ---- Modelo incuyendo interacción ----
+
+x <- dat[!is.na(dat$genero), ]
+regions <- unique(x$region)
+list_models <- vector("list", length(regions))
+
+for (i in seq_along(regions)) {
+  list_models[[i]] <- glm(
+    genero ~ ifelse(
+      region == regions[[i]],
+      1, 0
+    ) * year,
+    data = x
+  )
+}
+list_models_summary <- lapply(list_models, summary)
+names(list_models_summary) <- regions
+
+df_res <- data.frame("Región" = regions)
+df_res$p_values <- unlist(lapply(list_models_summary, \(x) x$coefficients[2, 4]))
+
+# Bonferroni correction
+p_value_corrected <- 0.05 / length(p_values)
+
+or_values <- conf_int_values <- vector("list", length(list_models))
+for (i in seq_along(list_models)) {
+  or_values[[i]] <- exp(coef(list_models[[i]]))[2] # OR of specialty
+  conf_int_values[[i]] <- exp(
+    suppressMessages(
+      # Confidence interval of specialty
+      confint(list_models[[i]], level = 1 - p_value_corrected)[2, ]
+    )
+  )
+}
+df_res$or_values <- unlist(or_values)
+df_res$conf_int_values <- conf_int_values
+
+i <- df_res$p_values <= p_value_corrected
+df_res$p_value_significant <- i
+regions[i]
+
+df_res$conf_int_lower <- unlist(lapply(df_res$conf_int_values, \(x) x[1]))
+df_res$conf_int_upper <- unlist(lapply(df_res$conf_int_values, \(x) x[2]))
+df_res <- df_res[, colnames(df_res) != "conf_int_values"]
+df_res
 ```
 
 Si se realiza un modelo estadístico final, ajustando por región y especialidades.
 
 ```{r}
 x <- dat[!is.na(dat$genero), ]
-model <- glm(genero ~ year + region + especialidad, family = "binomial", data = dat)
+model <- glm(genero ~ year + region + especialidad, family = "binomial", data = x)
 model_summary <- summary(model)
-model_summary$coefficients[2, ]
-round(cbind(exp(coef(model)[2]), exp(confint(model, parm = 2))), digits = 2)
+model_summary$coefficients[2, ] # p_value
+exp(coef(model)[2]) # odds ratio
+exp(confint(model, parm = 2)) # confidence interval
 ```
 
