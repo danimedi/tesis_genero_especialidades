@@ -121,7 +121,7 @@ A continuación se realiza la prueba estadística mediante un modelo de regresi�
 
 Como resultado tenemos las especialidades que son realmente distintas en cuanto a distribución de género respecto a las diferencias globales (esperadas).
 
-```{r}
+```{r model-1}
 x <- dat[!is.na(dat$genero), ]
 specialties <- unique(x$especialidad)
 list_models <- vector("list", length(specialties))
@@ -345,7 +345,7 @@ Para el estudio de la tendencia se puede realizar un modelo de regresión logís
 
 En primer lugar se realiza un modelo simple para demostrar que el género es alterado por el tiempo (años).
 
-```{r}
+```{r model-2}
 x <- dat[!is.na(dat$genero), ]
 model <- glm(genero ~ year, family = "binomial", data = x)
 model_summary <- summary(model)
@@ -355,7 +355,7 @@ round(cbind(exp(coef(model)), exp(confint(model))), 3)
 
 Del mismo modo, se podría realizar un modelo similar agregando variables para ajustar los resultados.
 
-```{r}
+```{r model-3}
 x <- dat[!is.na(dat$genero), ]
 model <- glm(genero ~ year + especialidad, family = "binomial", data = x)
 model_summary <- summary(model)
@@ -368,7 +368,7 @@ exp(confint(model, parm = 2))
 
 También se podría usar un modelo de regresión logística estudiando la modificación de efecto ocasionada por las distintas especialidades o tipos de especialidades. Para esto se podría realizar un modelo estadístico por cada especialidad comparando esta con el resto de especialidades.
 
-```{r}
+```{r model-4}
 x <- dat[!is.na(dat$genero), ]
 model <- glm(genero ~ year * especialidad, family = "binomial", data = x)
 model_summary <- summary(model)
@@ -378,7 +378,7 @@ i <- model_summary$coefficients[, 4] < 0.05
 model_summary$coefficients[i, ]
 ```
 
-```{r}
+```{r model-5}
 x <- dat[!is.na(dat$genero), ]
 
 specialties <- unique(x$especialidad)
@@ -450,7 +450,7 @@ specialties[i]
 
 De forma simplificada se podría usar especialidades clínicas vs. quirúrgicas.
 
-```{r}
+```{r model-6}
 x <- dat[!is.na(dat$genero), ]
 model <- glm(genero ~ year * especialidad_quirurgica, family = "binomial", data = dat)
 model_summary <- summary(model)
@@ -646,7 +646,7 @@ write.table(y, here("output/tabla_7-percentages.txt"), sep = "\t", row.names = F
 
 Probar estadísticamente si la tendencia de género se conserva también en las distintas especialidades. Hacer lo mismo que al inicio en el estudio de tendencias, solo que exclusivamente para los ingresantes
 
-```{r}
+```{r model-7}
 x <- dat[!is.na(dat$genero), ]
 x <- x[x$ingreso == 1, ]
 
@@ -665,7 +665,7 @@ exp(confint(model, parm = 2))
 
 Además, también se puede corroborar si hay diferencias estadísticamente significativas en el ingreso de mujeres y hombres a las distintas especialidades. Para esto se puede hacer una regresión logística en la que el outcome sería el ingreso y los predictors el género y el año (para ajustar).
 
-```{r}
+```{r model-8}
 # Modelo simple 
 x <- dat[!is.na(dat$genero), ]
 x <- x[x$year >= 2016, ]
@@ -842,7 +842,7 @@ Ahora, se podría realizar una prueba estadística para determinar si existen di
 
 Para esto se puede realizar una prueba estadística para cada una de las especialidades, para compararlas con el resto (distribución global).
 
-```{r}
+```{r model-9}
 # ---- Modelo sin incluir variable de tiempo (año) ----
 
 x <- dat[!is.na(dat$genero), ]
@@ -940,7 +940,7 @@ df_res
 write.table(df_res, here("output/tabla_9.txt"), sep = "\t", row.names = FALSE)
 ```
 
-```{r}
+```{r model-10}
 # ---- Modelo excluyendo a la región Oriente ----
 
 x <- dat[!is.na(dat$genero), ]
@@ -991,7 +991,7 @@ df_res
 ```
 
 
-```{r}
+```{r model-11}
 # ---- Modelo incuyendo interacción ----
 
 x <- dat[!is.na(dat$genero), ]
@@ -1041,7 +1041,7 @@ df_res
 
 Si se realiza un modelo estadístico final, ajustando por región y especialidades.
 
-```{r}
+```{r model-12}
 x <- dat[!is.na(dat$genero), ]
 model <- glm(genero ~ year + region + especialidad, family = "binomial", data = x)
 model_summary <- summary(model)
