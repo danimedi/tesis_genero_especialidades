@@ -39,7 +39,7 @@ dat$region <- ifelse(
         ifelse(
           dat$universidad %in% oriente_region,
           "Oriente",
-          "CONAREME"
+          NA
         )
       )
     )
