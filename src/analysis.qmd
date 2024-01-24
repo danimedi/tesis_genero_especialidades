@@ -762,7 +762,7 @@ x$genero_factor <- factor(
 
 x$region <- factor(
   x$region,
-  levels = c("Lima", "Norte", "Sur", "Centro", "Oriente", "CONAREME")
+  levels = c("Lima", "Norte", "Sur", "Centro", "Oriente")
 )
 
 ggplot(x) +
@@ -826,6 +826,7 @@ p_years <- dat %>%
   summarize(p_total = mean(genero, na.rm = TRUE))
 
 p_data <- left_join(p_region, p_years, by = c("year"))
+p_data <- p_data[!is.na(p_data$region), ] # Removing missing values
 
 ggplot(p_data) +
   geom_line(aes(year, p_total)) +
@@ -846,6 +847,7 @@ Para esto se puede realizar una prueba estadística para cada una de las especia
 # ---- Modelo sin incluir variable de tiempo (año) ----
 
 x <- dat[!is.na(dat$genero), ]
+x <- x[!is.na(x$region), ] # Remove missing regions
 regions <- unique(x$region)
 list_models <- vector("list", length(regions))
 
@@ -865,7 +867,7 @@ df_res <- data.frame("Región" = regions)
 df_res$p_values <- unlist(lapply(list_models_summary, \(x) x$coefficients[2, 4]))
 
 # Bonferroni correction
-p_value_corrected <- 0.05 / length(p_values)
+p_value_corrected <- 0.05 / nrow(df_res)
 
 or_values <- conf_int_values <- vector("list", length(list_models))
 for (i in seq_along(list_models)) {
@@ -894,6 +896,7 @@ df_res
 # ---- Modelo incluyendo (ajustado a) la variable tiempo (año) ----
 
 x <- dat[!is.na(dat$genero), ]
+x <- x[!is.na(x$region), ] # Remove missing regions
 regions <- unique(x$region)
 list_models <- vector("list", length(regions))
 
@@ -913,7 +916,7 @@ df_res <- data.frame("Región" = regions)
 df_res$p_values <- unlist(lapply(list_models_summary, \(x) x$coefficients[2, 4]))
 
 # Bonferroni correction
-p_value_corrected <- 0.05 / length(p_values)
+p_value_corrected <- 0.05 / nrow(df_res)
 
 or_values <- conf_int_values <- vector("list", length(list_models))
 for (i in seq_along(list_models)) {
@@ -944,7 +947,8 @@ write.table(df_res, here("output/tabla_9.txt"), sep = "\t", row.names = FALSE)
 # ---- Modelo excluyendo a la región Oriente ----
 
 x <- dat[!is.na(dat$genero), ]
-x <- dat[dat$region != "Oriente", ]
+x <- x[!is.na(x$region), ] # Remove missing regions
+x <- x[x$region != "Oriente", ]
 
 regions <- unique(x$region)
 list_models <- vector("list", length(regions))
@@ -965,7 +969,7 @@ df_res <- data.frame("Región" = regions)
 df_res$p_values <- unlist(lapply(list_models_summary, \(x) x$coefficients[2, 4]))
 
 # Bonferroni correction
-p_value_corrected <- 0.05 / length(p_values)
+p_value_corrected <- 0.05 / nrow(df_res)
 
 or_values <- conf_int_values <- vector("list", length(list_models))
 for (i in seq_along(list_models)) {
