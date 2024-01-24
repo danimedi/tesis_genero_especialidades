@@ -13,4 +13,4 @@ dat <- Reduce(rbind, dat_list) # Unify data
 # Remove the identifiers
 dat <- dat[, c(-1, -2)]
 
-write_csv(dat, "data/full_deidentified_data.csv")
+write_csv(dat, here("data/full_deidentified_data.csv"))
