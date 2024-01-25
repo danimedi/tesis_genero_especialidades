@@ -90,6 +90,33 @@ res
 write.table(res, here("output/tabla_2.txt"), sep = "\t", row.names = FALSE)
 ```
 
+Esta tabla grande se puede separar en tablas más pequeñas.
+
+```{r}
+x <- filter(dat, subespecialidad == 0) # Remove subspecialties
+res <- x %>%
+  group_by(especialidad) %>%
+  summarize(
+    n_postulantes = length(especialidad),
+    n_genero = sum(!is.na(genero)),
+    p_genero = sum(!is.na(genero)) / length(especialidad),
+    n_mujeres = sum(genero == 1, na.rm = TRUE),
+    p_mujeres = sum(genero == 1, na.rm = TRUE) / sum(!is.na(genero)),
+    n_hombres = sum(genero == 0, na.rm = TRUE),
+    p_hombres = sum(genero == 0, na.rm = TRUE) / sum(!is.na(genero))
+  )
+res <- filter(res, n_postulantes > 20) # remove those with less than 20 applicants
+write.table(
+  arrange(res, p_mujeres),
+  here("output/tabla_2-mas_hombres.txt"), sep = "\t", row.names = FALSE
+)
+write.table(
+  arrange(res, p_hombres),
+  here("output/tabla_2-mas_mujeres.txt"), sep = "\t", row.names = FALSE
+)
+```
+
+
 El código a continuación genera gráficos de la distribución de género de cada una de las especialidades.
 
 ```{r graphs-1}
@@ -182,6 +209,71 @@ df_res$conf_int_upper <- unlist(lapply(df_res$conf_int_values, \(x) x[2]))
 df_res <- df_res[, colnames(df_res) != "conf_int_values"]
 write.table(df_res, here("output/tabla_3.txt"), sep = "\t", row.names = FALSE)
 ```
+
+Ahora, podemos separar las especialidades con diferencias significativas de acuerdo el efecto en el género (más hombres o más mujeres), de acuerdo al odds ratio.
+
+```{r}
+# Separate by odds ratio ...
+x <- df_res[df_res$p_value_significant, ]
+more_women <- x[x$or_values > 1, ]
+more_men <- x[x$or_values < 1, ]
+
+biggest_specialties <- function(threshold = 20) {
+  x <- dat %>% group_by(especialidad) %>% count()
+  i <- x$n > threshold
+  x[i, 1, drop = TRUE]
+}
+# 
+# n <- 100
+# i <- more_women$Especialidad %in% biggest_specialties(threshold = n)
+j <- more_women$Especialidad %in% unique(dat$especialidad[dat$subespecialidad == 0])
+write.table(
+  arrange(more_women[j, ], desc(or_values)),
+  here("output/tabla_3-mas_mujeres.txt"),
+  sep = "\t", row.names = FALSE
+)
+
+
+j <- more_men$Especialidad %in% unique(dat$especialidad[dat$subespecialidad == 0])
+write.table(
+  arrange(more_men[j, ], or_values),
+  here("output/tabla_3-mas_hombres.txt"),
+  sep = "\t", row.names = FALSE
+)
+```
+
+
+```{r graph-1-2}
+x_women <- dat %>%
+  filter(!is.na(genero), especialidad %in% more_women$Especialidad) %>%
+  group_by(year, especialidad) %>%
+  summarize(women = mean(genero), n = length(year))
+
+x_men <- dat %>%
+  filter(!is.na(genero), especialidad %in% more_men$Especialidad) %>%
+  group_by(year, especialidad) %>%
+  summarize(women = mean(genero), n = length(year))
+
+# ... select the specialties with more applicants
+select_biggest <- function(df, n = 6) {
+  y <- df %>% group_by(especialidad) %>% summarize(n = sum(n))
+  i <- order(y$n, decreasing = TRUE)[1:n]
+  j <- y[i, "especialidad", drop = TRUE]
+  df[df$especialidad %in% j, ]
+}
+
+
+ggplot(select_biggest(x_women), aes(year, women, color = especialidad)) +
+  geom_line() +
+  scale_x_continuous(breaks = seq(2013, 2023, by = 1)) +
+  labs(x = "Año", y = "Proporción de mujeres", color = "Especialidad")
+
+ggplot(select_biggest(x_men), aes(year, women, color = especialidad)) +
+  geom_line() +
+  scale_x_continuous(breaks = seq(2013, 2023, by = 1)) +
+  labs(x = "Año", y = "Proporción de mujeres", color = "Especialidad")
+```
+
 
 # Estudio de tendencias
 
@@ -381,70 +473,173 @@ model_summary$coefficients[i, ]
 ```{r model-5}
 x <- dat[!is.na(dat$genero), ]
 
+# Select every 5 years
+# x <- x[x$year %in% c(2013, 2023), ]
+
 specialties <- unique(x$especialidad)
-list_models <- vector("list", length(specialties))
+list_models <- lrt_result_p_value <- vector("list", length(specialties))
 for (i in seq_along(specialties)) {
-  list_models[[i]] <- glm(
-    genero ~ year * ifelse(
-      especialidad == specialties[[i]],
-      1, 0
-    ),
+  model_raw <- glm(
+    genero ~ year + ifelse(especialidad == specialties[[i]], 1, 0),
     data = x
   )
+  model_interaction <- glm(
+    genero ~ year * ifelse(especialidad == specialties[[i]], 1, 0),
+    data = x
+  )
+  lrt_result_p_value[[i]] <- anova(model_raw, model_interaction, test = "LRT")[2, 5]
+  list_models[[i]] <- model_interaction
 }
 list_models_summary <- lapply(list_models, summary)
 names(list_models_summary) <- specialties
 list_models_summary[1]
+lrt_result_p_value[1]
 
-df_res <- data.frame("Especialidad" = specialties)
+p_value_corrected <- 0.05 / length(specialties)
+i <- unlist(lrt_result_p_value) < p_value_corrected
+specialties_significant <- specialties[i]
+specialties_significant <- specialties_significant[!is.na(specialties_significant)]
 
-vector("list", length(nrow(df_res))) ->
-  df_res$p_value_year ->
-  df_res$p_value_specialty ->
-  df_res$p_value_interaction
+# Make a graph for those specialties
+y <- dat %>%
+  filter(!is.na(genero), especialidad %in% specialties_significant) %>%
+  group_by(year, especialidad) %>%
+  summarize(women = mean(genero, na.rm = TRUE), n = length(year))
 
-for (i in seq_along(list_models)) {
-  summary_model <- summary(list_models[[i]])
-  df_res$p_value_year[[i]] <- summary_model$coefficients[2, 4]
-  df_res$p_value_specialty[[i]] <- summary_model$coefficients[3, 4]
-  if (nrow(summary_model$coefficients) < 4) {
-    df_res$p_value_interaction[[i]] <- NA
-  } else {
-    df_res$p_value_interaction[[i]] <- summary_model$coefficients[4, 4]
-  }
-}
+p_women_global <- x %>% group_by(year) %>% summarize(women_global = mean(genero, na.rm = TRUE))
 
-for (j in 2:ncol(df_res)) {
-  df_res[, j] <- unlist(df_res[, j])
-}
+y <- left_join(y, p_women_global, by = c("year"))
 
-# Bonferroni correction
-p_value_corrected <- 0.05 / nrow(df_res)
-
-# Specialties with statistical significance
-i <- df_res$p_value_specialty <= p_value_corrected
-specialties[i]
-
-# Interactions with statistical significance
-i <- df_res$p_value_interaction <= p_value_corrected
-specialties[i]
+ggplot(y) +
+  geom_line(aes(year, women, color = especialidad)) +
+  geom_point(aes(year, women, color = especialidad), alpha = 0.1) +
+  geom_line(aes(year, women_global))
 
 
+# ------------------------
 
-# or_values <- conf_int_values <- vector("list", length(list_models))
+# 
+# 
+# 
+# 
+# 
+# df_res <- data.frame("Especialidad" = specialties)
+# 
+# vector("list", length(nrow(df_res))) ->
+#   df_res$p_value_year ->
+#   df_res$p_value_specialty ->
+#   df_res$p_value_interaction
+# 
 # for (i in seq_along(list_models)) {
-#   or_values[[i]] <- exp(coef(list_models[[i]]))[2] # OR of specialty
-#   conf_int_values[[i]] <- exp(
-#     suppressMessages(
-#       # Confidence interval of specialty
-#       confint(list_models[[i]], level = 1 - p_value_corrected)[2, ]
-#     )
-#   )
+#   summary_model <- summary(list_models[[i]])
+#   df_res$p_value_year[[i]] <- summary_model$coefficients[2, 4]
+#   df_res$p_value_specialty[[i]] <- summary_model$coefficients[3, 4]
+#   if (nrow(summary_model$coefficients) < 4) {
+#     df_res$p_value_interaction[[i]] <- NA
+#   } else {
+#     df_res$p_value_interaction[[i]] <- summary_model$coefficients[4, 4]
+#   }
 # }
-# df_res$or_values <- or_values
-# df_res$conf_int_values <- conf_int_values
+# 
+# for (j in 2:ncol(df_res)) {
+#   df_res[, j] <- unlist(df_res[, j])
+# }
+# 
+# # Bonferroni correction
+# p_value_corrected <- 0.05 / nrow(df_res)
+# 
+# # Specialties with statistical significance
+# i <- df_res$p_value_specialty <= p_value_corrected
+# specialties[i]
+# 
+# # Interactions with statistical significance
+# i <- df_res$p_value_interaction <= p_value_corrected
+# specialties[i]
+# 
+# list_models_summary[ifelse(is.na(i), FALSE, i)]
+# 
+# # or_values <- conf_int_values <- vector("list", length(list_models))
+# # for (i in seq_along(list_models)) {
+# #   or_values[[i]] <- exp(coef(list_models[[i]]))[2] # OR of specialty
+# #   conf_int_values[[i]] <- exp(
+# #     suppressMessages(
+# #       # Confidence interval of specialty
+# #       confint(list_models[[i]], level = 1 - p_value_corrected)[2, ]
+# #     )
+# #   )
+# # }
+# # df_res$or_values <- or_values
+# # df_res$conf_int_values <- conf_int_values
 
 
+```
+
+```{r}
+x <- dat[!is.na(dat$genero), ]
+
+# Select every 5 years
+# x <- x[x$year %in% c(2013, 2023), ]
+
+specialties <- unique(x$especialidad)
+list_models <- lrt_result_p_value <- vector("list", length(specialties))
+for (i in seq_along(specialties)) {
+  model_raw <- glm(
+    genero ~ year + ifelse(especialidad == specialties[[i]], 1, 0),
+    data = x
+  )
+  model_interaction <- glm(
+    genero ~ year * ifelse(especialidad == specialties[[i]], 1, 0),
+    data = x
+  )
+  lrt_result_p_value[[i]] <- anova(model_raw, model_interaction, test = "LRT")[2, 5]
+  list_models[[i]] <- model_interaction
+}
+list_models_summary <- lapply(list_models, summary)
+names(list_models_summary) <- specialties
+list_models_summary[1]
+lrt_result_p_value[1]
+
+p_value_corrected <- 0.05 / length(specialties)
+i <- unlist(lrt_result_p_value) < p_value_corrected
+specialties_significant <- specialties[i]
+specialties_significant <- specialties_significant[!is.na(specialties_significant)]
+
+# Make a graph for those specialties
+y <- dat %>%
+  filter(!is.na(genero), especialidad %in% specialties_significant) %>%
+  group_by(year, especialidad) %>%
+  summarize(odds_women = sum(genero, na.rm = TRUE) / sum(genero == 0, na.rm = TRUE), n = length(year))
+
+p_women_global <- x %>% group_by(year) %>% summarize(women_global = sum(genero, na.rm = TRUE) / sum(genero == 0, na.rm = TRUE))
+
+y <- left_join(y, p_women_global, by = c("year"))
+
+ggplot(y) +
+  geom_line(aes(year, log(odds_women), color = especialidad)) +
+  geom_point(aes(year, log(odds_women), color = especialidad), alpha = 0.1) +
+  geom_line(aes(year, log(women_global)))
+
+ggplot()
+```
+
+```{r}
+i <- dat %>% group_by(especialidad) %>% count()
+i <- i[i$n > 3000, 1, drop = TRUE]
+
+y <- dat %>%
+  filter(!is.na(genero), especialidad %in% i) %>%
+  group_by(year, especialidad) %>%
+  summarize(odds_women = sum(genero, na.rm = TRUE) / sum(genero == 0, na.rm = TRUE), n = length(year))
+
+p_women_global <- x %>% group_by(year) %>% summarize(women_global = sum(genero, na.rm = TRUE) / sum(genero == 0, na.rm = TRUE))
+
+y <- left_join(y, p_women_global, by = c("year"))
+
+ggplot(y) +
+  geom_line(aes(year, log(odds_women), color = especialidad)) +
+  geom_point(aes(year, log(odds_women), color = especialidad), alpha = 0.1) +
+  geom_line(aes(year, log(women_global)))
+  # +   theme(legend.position = "none")
 ```
 
 
@@ -498,6 +693,31 @@ res <- dat_ingresantes %>%
 res
 write.table(res, here("output/tabla_6.txt"), sep = "\t", row.names = FALSE)
 ```
+
+```{r}
+x <- filter(dat_ingresantes, subespecialidad == 0) # Remove subspecialties
+res <- x %>%
+  group_by(especialidad) %>%
+  summarize(
+    n_postulantes = length(especialidad),
+    n_genero = sum(!is.na(genero)),
+    p_genero = sum(!is.na(genero)) / length(especialidad),
+    n_mujeres = sum(genero == 1, na.rm = TRUE),
+    p_mujeres = sum(genero == 1, na.rm = TRUE) / sum(!is.na(genero)),
+    n_hombres = sum(genero == 0, na.rm = TRUE),
+    p_hombres = sum(genero == 0, na.rm = TRUE) / sum(!is.na(genero))
+  )
+res <- filter(res, n_postulantes > 20) # remove those with less than 20 applicants
+write.table(
+  arrange(res, p_mujeres),
+  here("output/tabla_6-mas_hombres.txt"), sep = "\t", row.names = FALSE
+)
+write.table(
+  arrange(res, p_hombres),
+  here("output/tabla_6-mas_mujeres.txt"), sep = "\t", row.names = FALSE
+)
+```
+
 
 ## Gráficos de ingresantes solamente
 
