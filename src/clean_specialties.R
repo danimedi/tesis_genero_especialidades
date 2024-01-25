@@ -81,6 +81,13 @@ dat$especialidad <- collapse_into_one(
   output = "MEDICINA DE ENFERMEDADES INFECCIOSAS Y TROPICALES"
 )
 
+# Medicina física y de rehabilitación
+dat$especialidad <- collapse_into_one(
+  x = dat$especialidad,
+  input = c("MEDICINA DE REHABILITACION"),
+  output = "MEDICINA FISICA Y DE REHABILITACION"
+)
+
 # Medicina ocupacional
 dat$especialidad <- collapse_into_one(
   x = dat$especialidad,
@@ -93,6 +100,13 @@ dat$especialidad <- collapse_into_one(
   x = dat$especialidad,
   input = c("PSIQUIATRIA DEL NIÃ‘O Y DEL ADOLESCENT", "PSIQUIATRIA DE NIÑOS Y ADOLESCENTES"),
   output = "PSIQUIATRIA DEL NIÑO Y DEL ADOLESCENTE"
+)
+
+# Pediatría de emergencias
+dat$especialidad <- collapse_into_one(
+  x = dat$especialidad,
+  input = c("EMERGENCIAS PEDIATRICAS"),
+  output = "PEDIATRIA DE EMERGENCIAS Y DESASTRES"
 )
 
 sort(unique(dat$especialidad))
