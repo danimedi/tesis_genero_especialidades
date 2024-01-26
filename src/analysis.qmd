@@ -262,16 +262,26 @@ select_biggest <- function(df, n = 6) {
   df[df$especialidad %in% j, ]
 }
 
+# "Global" data
+p_years <- dat %>% group_by(year) %>% summarize(p_total = mean(genero, na.rm = TRUE))
+x_women <- left_join(x_women, p_years, by = c("year"))
+x_men <- left_join(x_men, p_years, by = c("year"))
 
-ggplot(select_biggest(x_women), aes(year, women, color = especialidad)) +
-  geom_line() +
+ggplot(select_biggest(x_women)) +
+  geom_line(aes(year, p_total), size = 0.7) +
+  geom_line(aes(year, women, color = especialidad)) +
   scale_x_continuous(breaks = seq(2013, 2023, by = 1)) +
-  labs(x = "Año", y = "Proporción de mujeres", color = "Especialidad")
+  labs(x = "Año", y = "Proporción de mujeres", color = "Especialidad") +
+  geom_hline(yintercept = 0.5, linetype = "dashed", color = "red")
+ggsave(here("output/graph_1-2-mujeres.png"))
 
-ggplot(select_biggest(x_men), aes(year, women, color = especialidad)) +
-  geom_line() +
+ggplot(select_biggest(x_men)) +
+  geom_line(aes(year, p_total), size = 0.7) +
+  geom_line(aes(year, women, color = especialidad)) +
   scale_x_continuous(breaks = seq(2013, 2023, by = 1)) +
-  labs(x = "Año", y = "Proporción de mujeres", color = "Especialidad")
+  labs(x = "Año", y = "Proporción de mujeres", color = "Especialidad") +
+  geom_hline(yintercept = 0.5, linetype = "dashed", color = "red")
+ggsave(here("output/graph_1-2-hombres.png"))
 ```
 
 
@@ -377,7 +387,8 @@ ggplot(p_data) +
   geom_line(aes(year, p_total)) +
   geom_line(aes(year, p, color = as.factor(especialidad_quirurgica))) +
   scale_x_continuous(breaks = seq(2013, 2023, by = 1)) +
-  labs(x = "Año", y = "Proporción de mujeres", color = "Tipo de especialidad")
+  labs(x = "Año", y = "Proporción de mujeres", color = "Tipo de especialidad") +
+  geom_hline(yintercept = 0.5, linetype = "dashed", color = "red")
 
 ggsave(here("output/graph_6.png"))
 ```
@@ -473,113 +484,6 @@ model_summary$coefficients[i, ]
 ```{r model-5}
 x <- dat[!is.na(dat$genero), ]
 
-# Select every 5 years
-# x <- x[x$year %in% c(2013, 2023), ]
-
-specialties <- unique(x$especialidad)
-list_models <- lrt_result_p_value <- vector("list", length(specialties))
-for (i in seq_along(specialties)) {
-  model_raw <- glm(
-    genero ~ year + ifelse(especialidad == specialties[[i]], 1, 0),
-    data = x
-  )
-  model_interaction <- glm(
-    genero ~ year * ifelse(especialidad == specialties[[i]], 1, 0),
-    data = x
-  )
-  lrt_result_p_value[[i]] <- anova(model_raw, model_interaction, test = "LRT")[2, 5]
-  list_models[[i]] <- model_interaction
-}
-list_models_summary <- lapply(list_models, summary)
-names(list_models_summary) <- specialties
-list_models_summary[1]
-lrt_result_p_value[1]
-
-p_value_corrected <- 0.05 / length(specialties)
-i <- unlist(lrt_result_p_value) < p_value_corrected
-specialties_significant <- specialties[i]
-specialties_significant <- specialties_significant[!is.na(specialties_significant)]
-
-# Make a graph for those specialties
-y <- dat %>%
-  filter(!is.na(genero), especialidad %in% specialties_significant) %>%
-  group_by(year, especialidad) %>%
-  summarize(women = mean(genero, na.rm = TRUE), n = length(year))
-
-p_women_global <- x %>% group_by(year) %>% summarize(women_global = mean(genero, na.rm = TRUE))
-
-y <- left_join(y, p_women_global, by = c("year"))
-
-ggplot(y) +
-  geom_line(aes(year, women, color = especialidad)) +
-  geom_point(aes(year, women, color = especialidad), alpha = 0.1) +
-  geom_line(aes(year, women_global))
-
-
-# ------------------------
-
-# 
-# 
-# 
-# 
-# 
-# df_res <- data.frame("Especialidad" = specialties)
-# 
-# vector("list", length(nrow(df_res))) ->
-#   df_res$p_value_year ->
-#   df_res$p_value_specialty ->
-#   df_res$p_value_interaction
-# 
-# for (i in seq_along(list_models)) {
-#   summary_model <- summary(list_models[[i]])
-#   df_res$p_value_year[[i]] <- summary_model$coefficients[2, 4]
-#   df_res$p_value_specialty[[i]] <- summary_model$coefficients[3, 4]
-#   if (nrow(summary_model$coefficients) < 4) {
-#     df_res$p_value_interaction[[i]] <- NA
-#   } else {
-#     df_res$p_value_interaction[[i]] <- summary_model$coefficients[4, 4]
-#   }
-# }
-# 
-# for (j in 2:ncol(df_res)) {
-#   df_res[, j] <- unlist(df_res[, j])
-# }
-# 
-# # Bonferroni correction
-# p_value_corrected <- 0.05 / nrow(df_res)
-# 
-# # Specialties with statistical significance
-# i <- df_res$p_value_specialty <= p_value_corrected
-# specialties[i]
-# 
-# # Interactions with statistical significance
-# i <- df_res$p_value_interaction <= p_value_corrected
-# specialties[i]
-# 
-# list_models_summary[ifelse(is.na(i), FALSE, i)]
-# 
-# # or_values <- conf_int_values <- vector("list", length(list_models))
-# # for (i in seq_along(list_models)) {
-# #   or_values[[i]] <- exp(coef(list_models[[i]]))[2] # OR of specialty
-# #   conf_int_values[[i]] <- exp(
-# #     suppressMessages(
-# #       # Confidence interval of specialty
-# #       confint(list_models[[i]], level = 1 - p_value_corrected)[2, ]
-# #     )
-# #   )
-# # }
-# # df_res$or_values <- or_values
-# # df_res$conf_int_values <- conf_int_values
-
-
-```
-
-```{r}
-x <- dat[!is.na(dat$genero), ]
-
-# Select every 5 years
-# x <- x[x$year %in% c(2013, 2023), ]
-
 specialties <- unique(x$especialidad)
 list_models <- lrt_result_p_value <- vector("list", length(specialties))
 for (i in seq_along(specialties)) {
@@ -617,37 +521,25 @@ y <- left_join(y, p_women_global, by = c("year"))
 ggplot(y) +
   geom_line(aes(year, log(odds_women), color = especialidad)) +
   geom_point(aes(year, log(odds_women), color = especialidad), alpha = 0.1) +
-  geom_line(aes(year, log(women_global)))
-
-ggplot()
-```
-
-```{r}
-i <- dat %>% group_by(especialidad) %>% count()
-i <- i[i$n > 3000, 1, drop = TRUE]
-
-y <- dat %>%
-  filter(!is.na(genero), especialidad %in% i) %>%
-  group_by(year, especialidad) %>%
-  summarize(odds_women = sum(genero, na.rm = TRUE) / sum(genero == 0, na.rm = TRUE), n = length(year))
-
-p_women_global <- x %>% group_by(year) %>% summarize(women_global = sum(genero, na.rm = TRUE) / sum(genero == 0, na.rm = TRUE))
-
-y <- left_join(y, p_women_global, by = c("year"))
-
-ggplot(y) +
-  geom_line(aes(year, log(odds_women), color = especialidad)) +
-  geom_point(aes(year, log(odds_women), color = especialidad), alpha = 0.1) +
-  geom_line(aes(year, log(women_global)))
-  # +   theme(legend.position = "none")
+  geom_line(aes(year, log(women_global)), size = 0.7) +
+  scale_x_continuous(breaks = seq(2013, 2023, by = 1)) +
+  labs(x = "Año", y = "Logaritmo de razón mujeres : varones", color = "Especialidad") +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red")
+ggsave(here("output/graph_7-8.png"))
 ```
 
 
 De forma simplificada se podría usar especialidades clínicas vs. quirúrgicas.
 
 ```{r model-6}
+# ---- without effect modification ----
 x <- dat[!is.na(dat$genero), ]
-model <- glm(genero ~ year * especialidad_quirurgica, family = "binomial", data = dat)
+model <- glm(genero ~ year + especialidad_quirurgica, family = "binomial", data = x)
+model_summary <- summary(model)
+round(cbind(exp(coef(model)), exp(confint(model))), 2)
+
+# ---- with effect modification ----
+model <- glm(genero ~ year * especialidad_quirurgica, family = "binomial", data = x)
 model_summary <- summary(model)
 round(cbind(exp(coef(model)), exp(confint(model))), 2)
 ```
@@ -834,7 +726,8 @@ ggplot(p_data) +
   geom_line(aes(year, p_total)) +
   geom_line(aes(year, p, color = as.factor(especialidad_quirurgica))) +
   scale_x_continuous(breaks = seq(2013, 2023, by = 1)) +
-  labs(x = "Año", y = "Proporción de mujeres", color = "Tipo de especialidad")
+  labs(x = "Año", y = "Proporción de mujeres", color = "Tipo de especialidad") +
+  geom_hline(yintercept = 0.5, linetype = "dashed", color = "red")
 
 ggsave(here("output/graph_13.png"))
 ```
@@ -900,6 +793,23 @@ model_summary <- summary(model)
 model_summary$coefficients[2, 4] # p-value
 round(cbind(exp(coef(model)), exp(confint(model))), 2)
 ```
+
+Análisis estadístico de especialidades clínicas vs. quirúrgicas.
+
+```{r}
+# ---- without effect modification ----
+x <- dat[!is.na(dat$genero) & dat$year >= 2016, ]
+x <- x[x$ingreso == 1, ]
+model <- glm(genero ~ year + especialidad_quirurgica, family = "binomial", data = x)
+model_summary <- summary(model)
+round(cbind(exp(coef(model)), exp(confint(model))), 2)
+
+# ---- with effect modification ----
+model <- glm(genero ~ year * especialidad_quirurgica, family = "binomial", data = x)
+model_summary <- summary(model)
+round(cbind(exp(coef(model)), exp(confint(model))), 2)
+```
+
 
 # Análisis: especialidades vs. subespecialidades
 
@@ -1049,10 +959,11 @@ p_data <- left_join(p_region, p_years, by = c("year"))
 p_data <- p_data[!is.na(p_data$region), ] # Removing missing values
 
 ggplot(p_data) +
-  geom_line(aes(year, p_total)) +
+  geom_line(aes(year, p_total), size = 0.7) +
   geom_line(aes(year, p, color = as.factor(region))) +
   scale_x_continuous(breaks = seq(2013, 2023, by = 1)) +
-  labs(x = "Año", y = "Proporción de mujeres", color = "Región")
+  labs(x = "Año", y = "Proporción de mujeres", color = "Región") +
+  geom_hline(yintercept = 0.5, linetype = "dashed", color = "red")
 
 ggsave(here("output/graph_16.png"))
 ```
@@ -1220,6 +1131,7 @@ df_res
 
 x <- dat[!is.na(dat$genero), ]
 regions <- unique(x$region)
+regions <- regions[!is.na(regions)] # remove NAs
 list_models <- vector("list", length(regions))
 
 for (i in seq_along(regions)) {
