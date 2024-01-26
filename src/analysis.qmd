@@ -512,20 +512,38 @@ specialties_significant <- specialties_significant[!is.na(specialties_significan
 y <- dat %>%
   filter(!is.na(genero), especialidad %in% specialties_significant) %>%
   group_by(year, especialidad) %>%
-  summarize(odds_women = sum(genero, na.rm = TRUE) / sum(genero == 0, na.rm = TRUE), n = length(year))
+  summarize(
+    odds_women = sum(genero, na.rm = TRUE) / sum(genero == 0, na.rm = TRUE),
+    p_women = mean(genero, na.rm = TRUE),
+    n = length(year)
+  )
 
-p_women_global <- x %>% group_by(year) %>% summarize(women_global = sum(genero, na.rm = TRUE) / sum(genero == 0, na.rm = TRUE))
+p_women_global <- x %>%
+  group_by(year) %>%
+  summarize(
+    odds_women_global = sum(genero, na.rm = TRUE) / sum(genero == 0, na.rm = TRUE),
+    p_women_global = mean(genero, na.rm = TRUE)
+  )
 
 y <- left_join(y, p_women_global, by = c("year"))
 
 ggplot(y) +
   geom_line(aes(year, log(odds_women), color = especialidad)) +
   geom_point(aes(year, log(odds_women), color = especialidad), alpha = 0.1) +
-  geom_line(aes(year, log(women_global)), size = 0.7) +
+  geom_line(aes(year, log(odds_women_global)), size = 0.7) +
   scale_x_continuous(breaks = seq(2013, 2023, by = 1)) +
   labs(x = "Año", y = "Logaritmo de razón mujeres : varones", color = "Especialidad") +
   geom_hline(yintercept = 0, linetype = "dashed", color = "red")
-ggsave(here("output/graph_7-8.png"))
+ggsave(here("output/graph_7-8-logs_odds.png"))
+
+ggplot(y) +
+  geom_line(aes(year, p_women, color = especialidad)) +
+  geom_point(aes(year, p_women, color = especialidad), alpha = 0.1) +
+  geom_line(aes(year, p_women_global), size = 0.7) +
+  scale_x_continuous(breaks = seq(2013, 2023, by = 1)) +
+  labs(x = "Año", y = "Proporción de mujeres", color = "Especialidad") +
+  geom_hline(yintercept = 0.5, linetype = "dashed", color = "red")
+ggsave(here("output/graph_7-8-proportion_women.png"))
 ```
 
 
@@ -757,11 +775,13 @@ write.table(y, here("output/tabla_7-percentages.txt"), sep = "\t", row.names = F
 
 ## Prueba estadística
 
+Primero realizar un modelo estadístico simple para comprobar que el año de postulación es aún estadísticamente significativo como predictor del género entre los ingresantes solamente.
+
 Probar estadísticamente si la tendencia de género se conserva también en las distintas especialidades. Hacer lo mismo que al inicio en el estudio de tendencias, solo que exclusivamente para los ingresantes
 
 ```{r model-7}
 x <- dat[!is.na(dat$genero), ]
-x <- x[x$ingreso == 1, ]
+x <- x[x$ingreso == 1 & x$year >= 2016, ]
 
 model <- glm(genero ~ year, family = "binomial", data = x)
 model_summary <- summary(model)
