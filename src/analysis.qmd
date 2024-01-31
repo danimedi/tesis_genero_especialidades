@@ -272,7 +272,8 @@ ggplot(select_biggest(x_women)) +
   geom_line(aes(year, women, color = especialidad)) +
   scale_x_continuous(breaks = seq(2013, 2023, by = 1)) +
   labs(x = "Año", y = "Proporción de mujeres", color = "Especialidad") +
-  geom_hline(yintercept = 0.5, linetype = "dashed", color = "red")
+  geom_hline(yintercept = 0.5, linetype = "dashed", color = "red") +
+  theme(legend.position = "bottom")
 ggsave(here("output/graph_1-2-mujeres.png"))
 
 ggplot(select_biggest(x_men)) +
@@ -280,7 +281,8 @@ ggplot(select_biggest(x_men)) +
   geom_line(aes(year, women, color = especialidad)) +
   scale_x_continuous(breaks = seq(2013, 2023, by = 1)) +
   labs(x = "Año", y = "Proporción de mujeres", color = "Especialidad") +
-  geom_hline(yintercept = 0.5, linetype = "dashed", color = "red")
+  geom_hline(yintercept = 0.5, linetype = "dashed", color = "red") +
+  theme(legend.position = "bottom")
 ggsave(here("output/graph_1-2-hombres.png"))
 ```
 
@@ -542,7 +544,8 @@ ggplot(y) +
   geom_line(aes(year, p_women_global), size = 0.7) +
   scale_x_continuous(breaks = seq(2013, 2023, by = 1)) +
   labs(x = "Año", y = "Proporción de mujeres", color = "Especialidad") +
-  geom_hline(yintercept = 0.5, linetype = "dashed", color = "red")
+  geom_hline(yintercept = 0.5, linetype = "dashed", color = "red") +
+  theme(legend.position = "bottom")
 ggsave(here("output/graph_7-8-proportion_women.png"))
 ```
 
@@ -1205,4 +1208,15 @@ model_summary$coefficients[2, ] # p_value
 exp(coef(model)[2]) # odds ratio
 exp(confint(model, parm = 2)) # confidence interval
 ```
+
+También se podría incluir la asignación de género como una posible variable confusora.
+
+```{r}
+x <- dat
+x$no_asigned_gender <- ifelse(is.na(x$genero), 1, 0)
+model <- glm(genero ~ year + region + especialidad + no_asigned_gender, family = "binomial", data = x)
+model_summary <- summary(model)
+```
+
+
 
