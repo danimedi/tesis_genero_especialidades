@@ -140,11 +140,40 @@ for (specialty in unique(x$especialidad)) {
 
 ## Prueba estadística
 
+Antes de realizar los modelos de regresión logística, debemos verificar que la relación entre el año y los log-odds del género es lineal, para esto podemos realizar un gráfico.
+
+```{r}
+# Obtain the quantiles from the year to slice the data in 4 groups
+q <- quantile(dat$year, probs = c(0, 0.25, 0.5, 0.75, 1))
+
+# Use this quantiles to create categories of the years
+year_cat <- cut(dat$year, breaks = q, right = FALSE, include.lowest = TRUE)
+
+# Find the probabilities (proportions) for all of these categories
+probs <- split(dat$genero, year_cat)
+probs <- vapply(probs, mean, double(1), na.rm = TRUE)
+# and calculate the log-odds
+logits <- log(probs / (1 - probs))
+
+# Find de medians of the years
+meds <- split(dat$year, year_cat)
+meds <- vapply(meds, median, double(1), na.rm = TRUE)
+
+# Generate a plot to check for linearity
+plot(
+  meds, logits,
+  main = "Should look linear if year is linear with log-odds of gender",
+  xlab = "Year", ylab = "Log-odds(Gender)",
+  las = 1
+)
+```
+
+
 Identificar las especialidades con mayor diferencia de distribución de género a través de una prueba estadística para determinar las probabilidades de que las diferencias observadas, en comparación con la distribución de género global sean igual de grandes.
 
 Nota: es necesario realizar algún tipo de corrección, debido a estar realizando múltiples pruebas estadísticas.
 
-A continuación se realiza la prueba estadística mediante un modelo de regresión lineal en el que se tiene al género como variable dependiente (outcome), mientras que se tienen a las variables especialidad y el año como independientes (predictors). Se realiza un modelo estadístico por cada una de las especialidades. En cada uno de estos modelos estadísticos se compara a la una especialidad con el resto y se obtiene el valor de p del coeficiente de la especialidad.
+A continuación se realiza la prueba estadística mediante un modelo de regresión logística en el que se tiene al género como variable dependiente (outcome), mientras que se tienen a las variables especialidad y el año como independientes (predictors). Se realiza un modelo estadístico por cada una de las especialidades. En cada uno de estos modelos estadísticos se compara a la una especialidad con el resto y se obtiene el valor de p del coeficiente de la especialidad.
 
 Como resultado tenemos las especialidades que son realmente distintas en cuanto a distribución de género respecto a las diferencias globales (esperadas).
 
