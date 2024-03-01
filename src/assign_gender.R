@@ -15,7 +15,13 @@ assign_gender <- function(clean_names, dict) {
   dict_lookup <- dict$gender
   dict_lookup <- setNames(dict_lookup, dict$name)
   gender <- dict_lookup[clean_names]
-  gender <- ifelse(gender == "F", 1, 0)
+  gender <- ifelse(
+    gender == "?", NA, ifelse(
+      gender == "F", 1, ifelse(
+        gender == "M", 0, NA
+      )
+    )
+  )
   gender
 }
 
