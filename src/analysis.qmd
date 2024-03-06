@@ -324,19 +324,19 @@ Algunos gráficos ...
 x <- dat
 x$genero_factor <- ifelse(
   is.na(x$genero),
-  "No género asignado",
+  "No sexo asignado",
   ifelse(
     x$genero == 1,
     "Femenino",
     "Masculino"
   )
 )
-x$genero_factor <- factor(x$genero_factor, levels = c("No género asignado", "Masculino", "Femenino"))
+x$genero_factor <- factor(x$genero_factor, levels = c("No sexo asignado", "Masculino", "Femenino"))
 
 ggplot(x) +
   geom_bar(aes(year, fill = genero_factor)) +
-  labs(x = "Año", y = "Número de postulantes", fill = "Género") +
-  scale_fill_manual(values = c("No género asignado" = "grey80", "Masculino" = "#619CFF", "Femenino" = "#F8766D"))
+  labs(x = "Año", y = "Número de postulantes", fill = "Sexo") +
+  scale_fill_manual(values = c("No sexo asignado" = "grey80", "Masculino" = "#619CFF", "Femenino" = "#F8766D"))
 
 ggsave(here("output/graph_2.png"))
 ```
@@ -684,19 +684,19 @@ dat_ingresantes <- filter(dat, ingreso == 1)
 x <- dat_ingresantes
 x$genero_factor <- ifelse(
   is.na(x$genero),
-  "No género asignado",
+  "No sexo asignado",
   ifelse(
     x$genero == 1,
     "Femenino",
     "Masculino"
   )
 )
-x$genero_factor <- factor(x$genero_factor, levels = c("No género asignado", "Masculino", "Femenino"))
+x$genero_factor <- factor(x$genero_factor, levels = c("No sexo asignado", "Masculino", "Femenino"))
 
 ggplot(x) +
   geom_bar(aes(year, fill = genero_factor)) +
-  labs(x = "Año", y = "Número de ingresantes", fill = "Género") +
-  scale_fill_manual(values = c("No género asignado" = "grey80", "Masculino" = "#619CFF", "Femenino" = "#F8766D"))
+  labs(x = "Año", y = "Número de ingresantes", fill = "Sexo") +
+  scale_fill_manual(values = c("No sexo asignado" = "grey80", "Masculino" = "#619CFF", "Femenino" = "#F8766D"))
 
 ggsave(here("output/graph_9.png"))
 ```
@@ -884,19 +884,19 @@ dat_subspecialty <- dat[dat$subespecialidad == 1, ]
 x <- dat_subspecialty
 x$genero_factor <- ifelse(
   is.na(x$genero),
-  "No género asignado",
+  "No sexo asignado",
   ifelse(
     x$genero == 1,
     "Femenino",
     "Masculino"
   )
 )
-x$genero_factor <- factor(x$genero_factor, levels = c("No género asignado", "Masculino", "Femenino"))
+x$genero_factor <- factor(x$genero_factor, levels = c("No sexo asignado", "Masculino", "Femenino"))
 
 ggplot(x) +
   geom_bar(aes(year, fill = genero_factor)) +
-  labs(x = "Año", y = "Número de postulantes", fill = "Género") +
-  scale_fill_manual(values = c("No género asignado" = "grey80", "Masculino" = "#619CFF", "Femenino" = "#F8766D"))
+  labs(x = "Año", y = "Número de postulantes", fill = "Sexo") +
+  scale_fill_manual(values = c("No sexo asignado" = "grey80", "Masculino" = "#619CFF", "Femenino" = "#F8766D"))
 ```
 
 Graficar línea de subespecialidades vs. tendencia global.
@@ -930,7 +930,7 @@ Primero, visualizar distribución de género general en las distintas regiones.
 x <- dat
 x$genero_factor <- ifelse(
   is.na(x$genero),
-  "No género asignado",
+  "No sexo asignado",
   ifelse(
     x$genero == 1,
     "Femenino",
@@ -939,7 +939,7 @@ x$genero_factor <- ifelse(
 )
 x$genero_factor <- factor(
   x$genero_factor,
-  levels = c("No género asignado", "Masculino", "Femenino")
+  levels = c("No sexo asignado", "Masculino", "Femenino")
 )
 
 x$region <- factor(
@@ -949,8 +949,8 @@ x$region <- factor(
 
 ggplot(x) +
   geom_bar(aes(region, fill = genero_factor)) +
-  labs(x = "Región", y = "Número de postulantes", fill = "Género") +
-  scale_fill_manual(values = c("No género asignado" = "grey80", "Masculino" = "#619CFF", "Femenino" = "#F8766D"))
+  labs(x = "Región", y = "Número de postulantes", fill = "Sexo") +
+  scale_fill_manual(values = c("No sexo asignado" = "grey80", "Masculino" = "#619CFF", "Femenino" = "#F8766D"))
 
 ggsave(here("output/graph_14.png"))
 ```
