@@ -1238,13 +1238,15 @@ exp(coef(model)[2]) # odds ratio
 exp(confint(model, parm = 2)) # confidence interval
 ```
 
-También se podría incluir la asignación de género como una posible variable confusora.
+También se podría hacer un análisis del peor o mejor caso (todos los datos faltantes que sean mujeres o todos los datos faltantes que sean hombres).
 
 ```{r}
+# Worst and best case analysis
 x <- dat
-x$no_asigned_gender <- ifelse(is.na(x$genero), 1, 0)
-model <- glm(genero ~ year + region + especialidad + no_asigned_gender, family = "binomial", data = x)
+x$genero <- ifelse(is.na(x$genero), 1, x$genero) # 1 or 0
+model <- glm(genero ~ year + region + especialidad, family = "binomial", data = x)
 model_summary <- summary(model)
+model_summary
 ```
 
 
