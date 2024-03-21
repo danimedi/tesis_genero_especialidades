@@ -25,11 +25,30 @@ assign_gender <- function(clean_names, dict) {
   gender
 }
 
-# Assign gender
-file_path <- "data/clean/2023_clean.csv"
+
+file_path <- "data/clean/2023_clean.csv"  # Assign gender for the data of each year
+
+# Assign gender based on the first name
 dat <- read_csv(here(file_path))
 x <- clean_first_names(dat$nombres)
 x <- assign_gender(x, dict)
 dat$genero <- x
+
+# Assign gender based on the second name if available
+clean_second_names <- function(names) {
+  x <- names |>
+    str_to_lower() |>
+    str_match("\\b\\w+\\s(\\w+)")
+  x <- x[, 2]
+  stri_trans_general(x, id = "Latin-ASCII")
+}
+
+x <- clean_second_names(dat$nombres)
+dat$genero <- ifelse(
+  is.na(dat$genero),
+  assign_gender(x, dict),
+  dat$genero
+)
+
 View(head(dat, n = 20))
 write_csv(dat, here(file_path))
