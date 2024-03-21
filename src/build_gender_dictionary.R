@@ -88,7 +88,8 @@ dat_res <- remove_duplicates(dat_res)
 # ---- Add manual data ----
 
 manual_data <- read_csv("data/gender_dictionary/manual_gender_names.csv")
+i <- dat_res$name %in% manual_data$name
+dat_res <- dat_res[!i, ]  # Respect the gender manually assigned
 dat_res <- rbind(dat_res, manual_data)
-dat_res <- remove_duplicates(dat_res)
 
-write_csv("data/first_name-gender_dictionary.csv")
+write_csv(dat_res, "data/first_name-gender_dictionary.csv")
