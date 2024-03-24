@@ -138,6 +138,32 @@ for (specialty in unique(x$especialidad)) {
 }
 ```
 
+Gráfico con las especialidades con mayor número de postulantes.
+
+```{r}
+# Filter the specialties with most applicants
+j <- sort(table(dat$especialidad), decreasing = TRUE)[1:10]
+j <- names(j)
+
+x <- dat[dat$especialidad %in% j, ]
+
+# Make a line graph with those specialties
+x <- x %>%
+  group_by(year, especialidad) %>%
+  summarize(p_mujeres = mean(genero, na.rm = TRUE))
+p_years <- dat %>% group_by(year) %>% summarize(p_total = mean(genero, na.rm = TRUE))
+x <- left_join(x, p_years, by = "year")
+
+ggplot(x) +
+  geom_line(aes(year, p_total), size = 0.7) +
+  geom_line(aes(year, p_mujeres, color = especialidad)) +
+  scale_x_continuous(breaks = seq(2013, 2023, by = 1)) +
+  labs(x = "Año", y = "Proporción de mujeres", color = "Especialidad") +
+  geom_hline(yintercept = 0.5, linetype = "dashed", color = "red") +
+  theme(legend.position = "bottom")
+```
+
+
 ## Prueba estadística
 
 Antes de realizar los modelos de regresión logística, debemos verificar que la relación entre el año y los log-odds del género es lineal, para esto podemos realizar un gráfico.
@@ -236,6 +262,7 @@ df_res$or_values <- unlist(df_res$or_values)
 df_res$conf_int_lower <- unlist(lapply(df_res$conf_int_values, \(x) x[1]))
 df_res$conf_int_upper <- unlist(lapply(df_res$conf_int_values, \(x) x[2]))
 df_res <- df_res[, colnames(df_res) != "conf_int_values"]
+df_res
 write.table(df_res, here("output/tabla_3.txt"), sep = "\t", row.names = FALSE)
 ```
 
