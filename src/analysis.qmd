@@ -547,11 +547,13 @@ list_models <- lrt_result_p_value <- vector("list", length(specialties))
 for (i in seq_along(specialties)) {
   model_raw <- glm(
     genero ~ year + ifelse(especialidad == specialties[[i]], 1, 0),
-    data = x
+    data = x,
+    family = "binomial"
   )
   model_interaction <- glm(
     genero ~ year * ifelse(especialidad == specialties[[i]], 1, 0),
-    data = x
+    data = x,
+    family = "binomial"
   )
   lrt_result_p_value[[i]] <- anova(model_raw, model_interaction, test = "LRT")[2, 5]
   list_models[[i]] <- model_interaction
