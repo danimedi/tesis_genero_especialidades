@@ -5,12 +5,47 @@ format: html
 editor: source
 ---
 
+Este es el modelo final. Está para extraer el resto de cosas. Creo que se puede mejorar sus gráficos, pero necesitamos reunirnos para definir qué cosas van y qué no van.
+
+Consejo: no se debería hacer un modelo para outcome sexo, debido a que solo tenemos en la base aquellas personas que postularon y la idea sería tener un grupo de aquellos que no postularon (pero podín hacerlo) y comparar si hay diferencias pr el año región, etc.
+
+Rehice el análisis y por ahí dejé sugerencias y varios métodos para que R le haga las tablas y solo tenga que exportar y editar
+
+Outcome: género femenino = a buscar qué factores explican quel a postulante sea mujer y no hombre (o si quieres ver distribuciones nos podrían criticar) 
+
+Mejor eso lo presentamos como gráficos y de forma descriptiva.
+
+
+
 ```{r}
 library(here)
 library(readr)
 library(dplyr)
 library(ggplot2)
-dat <- suppressMessages(read_csv(here("data/full_deidentified_data.csv")))
+library(tableone)
+library(ggsci)
+library(ggthemes)   
+library(broom.mixed)   
+
+library(compareGroups)
+
+pacman::p_load(
+  rio,          # Importación de ficheros
+  here,         # localizador de ficheros
+  skimr,        # obtener una visión general de los datos
+  tidyverse,    # gestión de datos + gráficos ggplot2 
+  gtsummary,    # resumen estadístico y tests
+  rstatix,      # resumen estadístico y pruebas estadísticas
+  janitor,      # añadir totales y porcentajes a las tablas
+  scales,       # convertir fácilmente proporciones en porcentajes  
+  flextable,    # convertir tablas en imágenes bonitas
+  broom,        # ordenar resultados de regresiones
+  lmtest,       # pruebas de razón de verosimilitud
+  parameters,   # alternativa para ordenar los resultados de las regresiones
+  ver           # alternativa para visualizar gráficos de bosque
+  )
+
+dat <- suppressMessages(read_csv(here("full_deidentified_data.csv")))
 ```
 
 # Estadísticas descriptivas generales
@@ -88,6 +123,7 @@ res <- dat %>%
   )
 res
 write.table(res, here("output/tabla_2.txt"), sep = "\t", row.names = FALSE)
+
 ```
 
 Esta tabla grande se puede separar en tablas más pequeñas.
@@ -141,7 +177,7 @@ for (specialty in unique(x$especialidad)) {
 Gráfico con las especialidades con mayor número de postulantes.
 
 ```{r}
-# Filter the specialties with most applicants
+# Filter the specialties with most female applicants 
 j <- sort(table(dat$especialidad), decreasing = TRUE)[1:10]
 j <- names(j)
 
@@ -150,1133 +186,201 @@ x <- dat[dat$especialidad %in% j, ]
 # Make a line graph with those specialties
 x <- x %>%
   group_by(year, especialidad) %>%
-  summarize(p_mujeres = mean(genero, na.rm = TRUE))
-p_years <- dat %>% group_by(year) %>% summarize(p_total = mean(genero, na.rm = TRUE))
+  dplyr::summarize(p_mujeres = mean(genero, na.rm = TRUE))
+
+p_years <- dat %>% group_by(year) %>% dplyr::summarize(p_total = mean(genero, na.rm = TRUE))
 x <- left_join(x, p_years, by = "year")
 
-ggplot(x) +
-  geom_line(aes(year, p_total), size = 0.7) +
-  geom_line(aes(year, p_mujeres, color = especialidad)) +
+ggplot(x, aes(year, p_mujeres, color = reorder(especialidad,-p_mujeres))) +
+  geom_point()+
+  geom_line(size=0.6) +
   scale_x_continuous(breaks = seq(2013, 2023, by = 1)) +
   labs(x = "Año", y = "Proporción de mujeres", color = "Especialidad") +
-  geom_hline(yintercept = 0.5, linetype = "dashed", color = "red") +
-  theme(legend.position = "bottom")
+  scale_y_continuous(limits = c(0,1), breaks=seq(0,1,0.2))+
+  scale_color_stata()
+
 ```
 
 
 ## Prueba estadística
 
-Antes de realizar los modelos de regresión logística, debemos verificar que la relación entre el año y los log-odds del género es lineal, para esto podemos realizar un gráfico.
 
 ```{r}
-# Obtain the quantiles from the year to slice the data in 4 groups
-q <- quantile(dat$year, probs = c(0, 0.25, 0.5, 0.75, 1))
 
-# Use this quantiles to create categories of the years
-year_cat <- cut(dat$year, breaks = q, right = FALSE, include.lowest = TRUE)
+nrow(dat) ## 67007
+data <- dat %>%filter(year>2016)
+nrow(data) ## 61748
 
-# Find the probabilities (proportions) for all of these categories
-probs <- split(dat$genero, year_cat)
-probs <- vapply(probs, mean, double(1), na.rm = TRUE)
-# and calculate the log-odds
-logits <- log(probs / (1 - probs))
+data <- data %>% filter(!is.na(genero))
+nrow(data) ## 60316
 
-# Find de medians of the years
-meds <- split(dat$year, year_cat)
-meds <- vapply(meds, median, double(1), na.rm = TRUE)
+data$ingreso <- data$ingreso %>%  factor(levels = c(0,1),
+                                        labels = c("No","Sí"))
 
-# Generate a plot to check for linearity
-plot(
-  meds, logits,
-  main = "Should look linear if year is linear with log-odds of gender",
-  xlab = "Year", ylab = "Log-odds(Gender)",
-  las = 1
-)
-```
+data$genero2 <- data$genero %>%  factor(levels = c(0,1),
+                                        labels = c("Masculino","Femenino"))
+
+data$year2 <- data$year %>%  as.factor()
+
+data$especialidad_tipo <- data$especialidad_tipo %>%  as.factor()
+
+data$region <- data$region %>%  as.factor()
+
+data$especialidad_quirurgica <- data$especialidad_quirurgica %>%  factor(levels = c(0,1),
+                                        labels = c("No","Sí"))
+
+data$subespecialidad <- data$subespecialidad %>%  factor(levels = c(0,1),
+                                        labels = c("No","Sí"))
 
 
-Identificar las especialidades con mayor diferencia de distribución de género a través de una prueba estadística para determinar las probabilidades de que las diferencias observadas, en comparación con la distribución de género global sean igual de grandes.
+data2 <- data %>% dplyr::select(year2, genero2, ingreso, especialidad_tipo, 
+    especialidad_quirurgica, subespecialidad, region)
 
-Nota: es necesario realizar algún tipo de corrección, debido a estar realizando múltiples pruebas estadísticas.
+skim(data2)
 
-A continuación se realiza la prueba estadística mediante un modelo de regresión logística en el que se tiene al género como variable dependiente (outcome), mientras que se tienen a las variables especialidad y el año como independientes (predictors). Se realiza un modelo estadístico por cada una de las especialidades. En cada uno de estos modelos estadísticos se compara a la una especialidad con el resto y se obtiene el valor de p del coeficiente de la especialidad.
+# tabla 1
 
-Como resultado tenemos las especialidades que son realmente distintas en cuanto a distribución de género respecto a las diferencias globales (esperadas).
 
-```{r model-1}
-x <- dat[!is.na(dat$genero), ]
-specialties <- unique(x$especialidad)
-list_models <- vector("list", length(specialties))
-for (i in seq_along(specialties)) {
-  list_models[[i]] <- glm(
-    genero ~ ifelse(
-      especialidad == specialties[[i]],
-      1, 0
-    ) + year,
-    data = x
+CreateTableOne(data = data2)
+
+# vs
+
+tabla_1a <- compareGroups(data = data2)
+tabla1 <- createTable(tabla_1a)
+tabla1  
+#export2xls(tabla1, "tabla1.xlsx")
+
+# vs
+data2 %>% 
+tbl_summary()  
+
+
+
+# Tabla 2 y 3
+
+data2 %>% 
+tbl_summary(by = year2,
+            label  = list(                                        
+      genero2   ~ "Sexo"),                           
+    missing_text = "Missing" )  %>% 
+  add_p() 
+
+
+data2 %>% 
+tbl_summary(by = genero2,
+    missing_text = "Missing" )  %>% 
+  add_p() 
+
+
+# tabla 4 : modelo simple :D 
+data2<- na.omit(data2)
+
+data2 %>% 
+  tbl_uvregression(                         ## produce una tabla univariante
+    method = glm,                           ## define la regresión que se desea ejecutar (modelo lineal generalizado)
+    y = ingreso,                            ## define la variable de resultado
+    method.args = list(family = binomial),  ## define el tipo de glm que se quiere ejecutar (logístico)
+    exponentiate = TRUE                     ## exponencia para producir odds ratios (en lugar de log odds)
   )
-}
-df_res <- data.frame("Especialidad" = specialties)
 
-p_values <- vector("list", length(list_models))
-for (i in seq_along(list_models)) {
-  summary_model <- summary(list_models[[i]])
-  p_values[[i]] <- summary_model$coefficients[2, 4] # p-value of specialty
-}
-p_values <- unlist(p_values)
-df_res$p_values <- p_values
 
-# Bonferroni correction
-p_value_corrected <- 0.05 / length(p_values)
 
-or_values <- conf_int_values <- vector("list", length(list_models))
-for (i in seq_along(list_models)) {
-  or_values[[i]] <- exp(coef(list_models[[i]]))[2] # OR of specialty
-  conf_int_values[[i]] <- exp(
-    suppressMessages(
-      # Confidence interval of specialty
-      confint(list_models[[i]], level = 1 - p_value_corrected)[2, ]
-    )
-  )
-}
-df_res$or_values <- or_values
-df_res$conf_int_values <- conf_int_values
 
-i <- p_values <= p_value_corrected
-df_res$p_value_significant <- i
-specialties[i]
+ tbl_regression(final_mv_reg, exponentiate = TRUE)
+
+
 ```
 
-Ahora creamos una tabla con los resultados obtenidos. Esta tabla tiene las siguientes columnas:
 
-- Especialidad
-- Número de postulantes
-- OR y OR corregido (con el tiempo)
-- Valor de p
-- ¿Valor de p significativo? (inferior a valor de p corregido por Bonferroni)
-
-```{r tabla-3}
-i <- order(df_res$p_values)
-df_res <- df_res[i, ]
-df_res$or_values <- unlist(df_res$or_values)
-df_res$conf_int_lower <- unlist(lapply(df_res$conf_int_values, \(x) x[1]))
-df_res$conf_int_upper <- unlist(lapply(df_res$conf_int_values, \(x) x[2]))
-df_res <- df_res[, colnames(df_res) != "conf_int_values"]
-df_res
-write.table(df_res, here("output/tabla_3.txt"), sep = "\t", row.names = FALSE)
-```
-
-Ahora, podemos separar las especialidades con diferencias significativas de acuerdo el efecto en el género (más hombres o más mujeres), de acuerdo al odds ratio.
 
 ```{r}
-# Separate by odds ratio ...
-x <- df_res[df_res$p_value_significant, ]
-more_women <- x[x$or_values > 1, ]
-more_men <- x[x$or_values < 1, ]
+library(lme4)
+#####################################################################
+#STEP #1: Building the Empty Model (corresponding to Sub-Appendix B)#
+#####################################################################
 
-biggest_specialties <- function(threshold = 20) {
-  x <- dat %>% group_by(especialidad) %>% count()
-  i <- x$n > threshold
-  x[i, 1, drop = TRUE]
-}
-# 
-# n <- 100
-# i <- more_women$Especialidad %in% biggest_specialties(threshold = n)
-j <- more_women$Especialidad %in% unique(dat$especialidad[dat$subespecialidad == 0])
-write.table(
-  arrange(more_women[j, ], desc(or_values)),
-  here("output/tabla_3-mas_mujeres.txt"),
-  sep = "\t", row.names = FALSE
-)
+#Below are the commands to run an empty model, that is, a model containing no predictors, 
+# and calculate the intraclass correlation coefficient (ICC; the degree of homogeneity of the outcome within clusters).
+
+# variables : year2, genero2, ingreso, especialidad_tipo, especialidad_quirurgica, subespecialidad, region
+data3 <- data %>% dplyr::select(year2, genero2, ingreso, especialidad, especialidad_tipo, 
+    especialidad_quirurgica, subespecialidad, region)
+    
+    
+M0 <- glmer(ingreso ~ ( 1 | especialidad), data=data3, family = "binomial")
+summary(M0)
+
+icc <- M0@theta[1]^2/ (M0@theta[1]^2 + (3.14159^2/3))
+icc
+
+#The intraclass correlation coefficient is ICC = .21; 
+#This indicates that 21% of the chance of "ingresar is explained by between-classroom differences 
+
+#############################################################################
+#STEP #2: Building the Intermediate Models (corresponding to Sub-Appendix C)#
+#############################################################################
+# Below are the commands to run the constrained intermediate model (CIM); 
+# the model contains all level-1 variables, all level-2 variables well as all intra-level interactions).
+
+CIM <- glmer(ingreso ~ genero2 + region + year2 +( 1 | especialidad), data=data3, family = "binomial")
+summary(CIM)
+paste("FYI: The deviance of the CIM is:", CIM@devcomp$cmp[[8]])
+
+# Below are the commands to run the augmented intermediate model (AIM); 
+# the model similar to the constrained intermediate model with the exception that it includes the random slope term of "").
 
 
-j <- more_men$Especialidad %in% unique(dat$especialidad[dat$subespecialidad == 0])
-write.table(
-  arrange(more_men[j, ], or_values),
-  here("output/tabla_3-mas_hombres.txt"),
-  sep = "\t", row.names = FALSE
-)
+AIM <- glmer(ingreso ~ genero2 + region  + year2 +( 1 + year2 | especialidad), data=data3, family = "binomial")
+summary(AIM)
+paste("FYI: The deviance of the AIM is:", AIM@devcomp$cmp[[8]])
+#The random slope component is "especialidad.1  0.7720"  (corresponding to the variation of the effect of "especialidad" from one class to another);
+
+# see lme4 convergence warnings: troubleshooting https://rstudio-pubs-static.s3.amazonaws.com/33653_57fc7b8e5d484c909b615d8633c01d51.html
+
+# vi que en stata corre mas rapido
+
+#Below is the command to determine whether including the random slope of "especialidad" improves the model. 
+#The software performs a likelihood-ratio test LR X(1)²,  comparing the deviance of the CIM with the deviance of the AIM.
+anova(CIM, AIM)
+
+#########
+#RESULTS#
+#########
+#The likelihood-ratio test is given by the anova function, and referred by the parameter Chisq = 26.896, Chi Df = 1, p < .001.
+#Thus, allowing the effect of "especialidad" to vary between classes improves the fit and it is better to take the random slope into account. 
+
+
+# OJO TARDAN MUCHO EN CORRER LOS MODELOS
+
+# creo nos quedamos con 
+CIM1 <- glmer(ingreso ~ genero2 + region + year2 +especialidad_tipo + ( 1 | especialidad), data=data3, family = "binomial")
+
+tidy_robust(CIM1, exponentiate = T, conf.int = T)
+
+library(sjPlot)
+
+tab_model(CIM1,  show.re.var = T, show.reflvl = T,file="regression_ingresar.html")
+
+#########
+#RESULTS#
+#########
+#Regarding your main effect hypothesis, the effect of "genero" is significant, sexo femenino OR = 0.80, 95% CI [0.77 – 0.84]
+
+
+
+
+
+
 ```
 
 
-```{r graph-1-2}
-x_women <- dat %>%
-  filter(!is.na(genero), especialidad %in% more_women$Especialidad) %>%
-  group_by(year, especialidad) %>%
-  summarize(women = mean(genero), n = length(year))
 
-x_men <- dat %>%
-  filter(!is.na(genero), especialidad %in% more_men$Especialidad) %>%
-  group_by(year, especialidad) %>%
-  summarize(women = mean(genero), n = length(year))
 
-# ... select the specialties with more applicants
-select_biggest <- function(df, n = 6) {
-  y <- df %>% group_by(especialidad) %>% summarize(n = sum(n))
-  i <- order(y$n, decreasing = TRUE)[1:n]
-  j <- y[i, "especialidad", drop = TRUE]
-  df[df$especialidad %in% j, ]
-}
 
-# "Global" data
-p_years <- dat %>% group_by(year) %>% summarize(p_total = mean(genero, na.rm = TRUE))
-x_women <- left_join(x_women, p_years, by = c("year"))
-x_men <- left_join(x_men, p_years, by = c("year"))
 
-ggplot(select_biggest(x_women)) +
-  geom_line(aes(year, p_total), size = 0.7) +
-  geom_line(aes(year, women, color = especialidad)) +
-  scale_x_continuous(breaks = seq(2013, 2023, by = 1)) +
-  labs(x = "Año", y = "Proporción de mujeres", color = "Especialidad") +
-  geom_hline(yintercept = 0.5, linetype = "dashed", color = "red") +
-  theme(legend.position = "bottom")
-ggsave(here("output/graph_1-2-mujeres.png"))
 
-ggplot(select_biggest(x_men)) +
-  geom_line(aes(year, p_total), size = 0.7) +
-  geom_line(aes(year, women, color = especialidad)) +
-  scale_x_continuous(breaks = seq(2013, 2023, by = 1)) +
-  labs(x = "Año", y = "Proporción de mujeres", color = "Especialidad") +
-  geom_hline(yintercept = 0.5, linetype = "dashed", color = "red") +
-  theme(legend.position = "bottom")
-ggsave(here("output/graph_1-2-hombres.png"))
-```
 
 
-# Estudio de tendencias
-
-Algunos gráficos ...
-
-```{r graph-2}
-x <- dat
-x$genero_factor <- ifelse(
-  is.na(x$genero),
-  "No sexo asignado",
-  ifelse(
-    x$genero == 1,
-    "Femenino",
-    "Masculino"
-  )
-)
-x$genero_factor <- factor(x$genero_factor, levels = c("No sexo asignado", "Masculino", "Femenino"))
-
-ggplot(x) +
-  geom_bar(aes(year, fill = genero_factor)) +
-  labs(x = "Año", y = "Número de postulantes", fill = "Sexo") +
-  scale_fill_manual(values = c("No sexo asignado" = "grey80", "Masculino" = "#619CFF", "Femenino" = "#F8766D"))
-
-ggsave(here("output/graph_2.png"))
-```
-
-Similar pero agrupados por especialidades.
-
-```{r graph-3}
-x <- dat
-x$especialidad_tipo <- ifelse(
-  dat$especialidad_tipo == "laboratorio_diagnostica", "De laboratorio y diagnóstica",
-  ifelse(
-    dat$especialidad_tipo == "medico_quirurgica", "Médico-quirúrgica",
-    ifelse(
-      dat$especialidad_tipo == "quirurgica", "Quirúrgica", "Clínica"
-    )
-  )
-)
-ggplot(x) +
-  geom_bar(
-    aes(year, fill = factor(especialidad_tipo, levels = c(
-      "De laboratorio y diagnóstica", "Médico-quirúrgica", "Quirúrgica", "Clínica")
-    ))
-  ) + labs(x = "Año", y = "Número de postulantes", fill = "Tipo de especialidad")
-
-ggsave(here("output/graph_3.png"))
-```
-
-Otro gráfico similar al primero, pero con líneas.
-
-```{r graph-4}
-# Separado en 4 subgrupos
-p_specialty_types <- x %>%
-  group_by(year, especialidad_tipo) %>%
-  summarize(p = mean(genero, na.rm = TRUE))
-
-p_years <- x %>% group_by(year) %>% summarize(p_total = mean(genero, na.rm = TRUE))
-
-p_data <- left_join(p_specialty_types, p_years, by = c("year"))
-
-ggplot(p_data) +
-  geom_line(aes(year, p_total)) +
-  geom_line(aes(year, p, color = especialidad_tipo)) +
-  scale_x_continuous(breaks = seq(2013, 2023, by = 1)) +
-  labs(x = "Año", y = "Proporción de mujeres", color = "Tipo de especialidad")
-
-ggsave(here("output/graph_4.png"))
-```
-
-Los mismos dos gráficos previos, pero agrupados en dos subgrupos (especialidades clínicas vs. quirúrgicas).
-
-```{r graph-5}
-x <- dat
-x$especialidad_quirurgica <- ifelse(
-  x$especialidad_quirurgica == 1, "Quirúrgica", "Clínica"
-)
-ggplot(x) +
-  geom_bar(aes(year, fill = factor(
-    especialidad_quirurgica, levels = c("Quirúrgica", "Clínica")
-  ))) +
-  labs(x = "Año", y = "Número de postulantes", fill = "Tipo de especialidad")
-
-ggsave(here("output/graph_5.png"))
-```
-
-```{r graph-6}
-# Separado en 2 subgrupos
-p_specialty_types <- dat %>%
-  group_by(year, especialidad_quirurgica) %>%
-  summarize(p = mean(genero, na.rm = TRUE))
-
-p_years <- dat %>% group_by(year) %>% summarize(p_total = mean(genero, na.rm = TRUE))
-
-p_data <- left_join(p_specialty_types, p_years, by = c("year"))
-p_data$especialidad_quirurgica <- ifelse(
-  p_data$especialidad_quirurgica == 1, "Quirúrgica", "Clínica"
-)
-
-ggplot(p_data) +
-  geom_line(aes(year, p_total)) +
-  geom_line(aes(year, p, color = as.factor(especialidad_quirurgica))) +
-  scale_x_continuous(breaks = seq(2013, 2023, by = 1)) +
-  labs(x = "Año", y = "Proporción de mujeres", color = "Tipo de especialidad") +
-  geom_hline(yintercept = 0.5, linetype = "dashed", color = "red")
-
-ggsave(here("output/graph_6.png"))
-```
-
-Preferencias de hombres y mujeres por especialidades
-
-```{r graph-7}
-x <- dat
-x$especialidad_quirurgica <- ifelse(
-  dat$especialidad_quirurgica == 1, "Quirúrgica", "Clínica"
-)
-
-# Mujeres
-ggplot(x[x$genero == 1, ]) +
-  geom_bar(aes(year, fill = factor(
-    especialidad_quirurgica, levels = c("Quirúrgica", "Clínica")
-  ))) +
-  labs(x = "Año", y = "Número de postulantes", fill = "Tipo de especialidad")
-ggsave(here("output/graph_7-mujeres.png"))
-
-# Hombres
-ggplot(x[x$genero == 0, ]) +
-  geom_bar(aes(year, fill = factor(
-    especialidad_quirurgica, levels = c("Quirúrgica", "Clínica")
-  ))) +
-  labs(x = "Año", y = "Número de postulantes", fill = "Tipo de especialidad")
-ggsave(here("output/graph_7-hombres.png"))
-```
-
-Esto y los porcentajes se expresa mejor en una tabla comparativa entre hombres y mujeres con la siguiente estructura:
-
-- Años
-- Hombres vs. Mujeres
-  - Especialidad clínica vs. quirúrgica
-
-```{r tabla-4}
-# I am removing the missing gender data
-x <- dat %>%
-  filter(!is.na(genero)) %>%
-  group_by(year, genero, especialidad_quirurgica) %>%
-  count()
-x
-write.table(x, here("output/tabla_4-counts.txt"), sep = "\t", row.names = FALSE)
-
-# Percentages
-y <- dat %>%
-  filter(!is.na(genero)) %>%
-  group_by(year, genero) %>%
-  summarize(p_quirugica = mean(especialidad_quirurgica))
-y
-write.table(y, here("output/tabla_4-percentages.txt"), sep = "\t", row.names = FALSE)
-```
-
-### Modelo estadístico
-
-Para el estudio de la tendencia se puede realizar un modelo de regresión logística (variable dependiente: género, variable independiente: tiempo).
-
-En primer lugar se realiza un modelo simple para demostrar que el género es alterado por el tiempo (años).
-
-```{r model-2}
-x <- dat[!is.na(dat$genero), ]
-model <- glm(genero ~ year, family = "binomial", data = x)
-model_summary <- summary(model)
-model_summary$coefficients[2, 4] # p-value
-round(cbind(exp(coef(model)), exp(confint(model))), 3)
-```
-
-Del mismo modo, se podría realizar un modelo similar agregando variables para ajustar los resultados.
-
-```{r model-3}
-x <- dat[!is.na(dat$genero), ]
-model <- glm(genero ~ year + especialidad, family = "binomial", data = x)
-model_summary <- summary(model)
-
-model_summary$coefficients[2, "Pr(>|z|)"] # adjusted p-value of year
-# ... and the OR + confidence interval
-exp(coef(model)[2])
-exp(confint(model, parm = 2))
-```
-
-También se podría usar un modelo de regresión logística estudiando la modificación de efecto ocasionada por las distintas especialidades o tipos de especialidades. Para esto se podría realizar un modelo estadístico por cada especialidad comparando esta con el resto de especialidades.
-
-```{r model-4}
-x <- dat[!is.na(dat$genero), ]
-model <- glm(genero ~ year * especialidad, family = "binomial", data = x)
-model_summary <- summary(model)
-
-p_value_corrected <- 0.05 / length(unique(x$especialidad))
-i <- model_summary$coefficients[, 4] < 0.05
-model_summary$coefficients[i, ]
-```
-
-```{r model-5}
-x <- dat[!is.na(dat$genero), ]
-
-specialties <- unique(x$especialidad)
-list_models <- lrt_result_p_value <- vector("list", length(specialties))
-for (i in seq_along(specialties)) {
-  model_raw <- glm(
-    genero ~ year + ifelse(especialidad == specialties[[i]], 1, 0),
-    data = x,
-    family = "binomial"
-  )
-  model_interaction <- glm(
-    genero ~ year * ifelse(especialidad == specialties[[i]], 1, 0),
-    data = x,
-    family = "binomial"
-  )
-  lrt_result_p_value[[i]] <- anova(model_raw, model_interaction, test = "LRT")[2, 5]
-  list_models[[i]] <- model_interaction
-}
-list_models_summary <- lapply(list_models, summary)
-names(list_models_summary) <- specialties
-list_models_summary[1]
-lrt_result_p_value[1]
-
-p_value_corrected <- 0.05 / length(specialties)
-i <- unlist(lrt_result_p_value) < p_value_corrected
-specialties_significant <- specialties[i]
-specialties_significant <- specialties_significant[!is.na(specialties_significant)]
-
-# Make a graph for those specialties
-y <- dat %>%
-  filter(!is.na(genero), especialidad %in% specialties_significant) %>%
-  group_by(year, especialidad) %>%
-  summarize(
-    odds_women = sum(genero, na.rm = TRUE) / sum(genero == 0, na.rm = TRUE),
-    p_women = mean(genero, na.rm = TRUE),
-    n = length(year)
-  )
-
-p_women_global <- x %>%
-  group_by(year) %>%
-  summarize(
-    odds_women_global = sum(genero, na.rm = TRUE) / sum(genero == 0, na.rm = TRUE),
-    p_women_global = mean(genero, na.rm = TRUE)
-  )
-
-y <- left_join(y, p_women_global, by = c("year"))
-
-ggplot(y) +
-  geom_line(aes(year, log(odds_women), color = especialidad)) +
-  geom_point(aes(year, log(odds_women), color = especialidad), alpha = 0.1) +
-  geom_line(aes(year, log(odds_women_global)), size = 0.7) +
-  scale_x_continuous(breaks = seq(2013, 2023, by = 1)) +
-  labs(x = "Año", y = "Logaritmo de razón mujeres : varones", color = "Especialidad") +
-  geom_hline(yintercept = 0, linetype = "dashed", color = "red")
-ggsave(here("output/graph_7-8-logs_odds.png"))
-
-ggplot(y) +
-  geom_line(aes(year, p_women, color = especialidad)) +
-  geom_point(aes(year, p_women, color = especialidad), alpha = 0.1) +
-  geom_line(aes(year, p_women_global), size = 0.7) +
-  scale_x_continuous(breaks = seq(2013, 2023, by = 1)) +
-  labs(x = "Año", y = "Proporción de mujeres", color = "Especialidad") +
-  geom_hline(yintercept = 0.5, linetype = "dashed", color = "red") +
-  theme(legend.position = "bottom")
-ggsave(here("output/graph_7-8-proportion_women.png"))
-```
-
-
-De forma simplificada se podría usar especialidades clínicas vs. quirúrgicas.
-
-```{r model-6}
-# ---- without effect modification ----
-x <- dat[!is.na(dat$genero), ]
-model <- glm(genero ~ year + especialidad_quirurgica, family = "binomial", data = x)
-model_summary <- summary(model)
-round(cbind(exp(coef(model)), exp(confint(model))), 2)
-
-# ---- with effect modification ----
-model <- glm(genero ~ year * especialidad_quirurgica, family = "binomial", data = x)
-model_summary <- summary(model)
-round(cbind(exp(coef(model)), exp(confint(model))), 2)
-```
-
-# Análisis: ingresantes
-
-Tabla descriptiva de datos de ingresantes solamente.
-
-```{r tabla-5}
-dat_ingresantes <- filter(dat, ingreso == 1)
-
-res <- dat_ingresantes %>%
-  group_by(year) %>%
-  summarize(
-    n_ingresantes = length(year),
-    n_genero = sum(!is.na(genero)),
-    p_genero = sum(!is.na(genero)) / length(year),
-    n_mujeres = sum(genero == 1, na.rm = TRUE),
-    p_mujeres = sum(genero == 1, na.rm = TRUE) / sum(!is.na(genero)),
-    n_hombres = sum(genero == 0, na.rm = TRUE),
-    p_hombres = sum(genero == 0, na.rm = TRUE) / sum(!is.na(genero))
-  )
-res
-write.table(res, here("output/tabla_5.txt"), sep = "\t", row.names = FALSE)
-```
-
-Datos de especialidades de los ingresantes solamente.
-
-```{r tabla-6}
-dat_ingresantes <- filter(dat, ingreso == 1)
-
-res <- dat_ingresantes %>%
-  group_by(especialidad) %>%
-  summarize(
-    n_ingresantes = length(especialidad),
-    n_genero = sum(!is.na(genero)),
-    p_genero = sum(!is.na(genero)) / length(especialidad),
-    n_mujeres = sum(genero == 1, na.rm = TRUE),
-    p_mujeres = sum(genero == 1, na.rm = TRUE) / sum(!is.na(genero)),
-    n_hombres = sum(genero == 0, na.rm = TRUE),
-    p_hombres = sum(genero == 0, na.rm = TRUE) / sum(!is.na(genero))
-  )
-res
-write.table(res, here("output/tabla_6.txt"), sep = "\t", row.names = FALSE)
-```
-
-```{r}
-x <- filter(dat_ingresantes, subespecialidad == 0) # Remove subspecialties
-res <- x %>%
-  group_by(especialidad) %>%
-  summarize(
-    n_postulantes = length(especialidad),
-    n_genero = sum(!is.na(genero)),
-    p_genero = sum(!is.na(genero)) / length(especialidad),
-    n_mujeres = sum(genero == 1, na.rm = TRUE),
-    p_mujeres = sum(genero == 1, na.rm = TRUE) / sum(!is.na(genero)),
-    n_hombres = sum(genero == 0, na.rm = TRUE),
-    p_hombres = sum(genero == 0, na.rm = TRUE) / sum(!is.na(genero))
-  )
-res <- filter(res, n_postulantes > 20) # remove those with less than 20 applicants
-write.table(
-  arrange(res, p_mujeres),
-  here("output/tabla_6-mas_hombres.txt"), sep = "\t", row.names = FALSE
-)
-write.table(
-  arrange(res, p_hombres),
-  here("output/tabla_6-mas_mujeres.txt"), sep = "\t", row.names = FALSE
-)
-```
-
-
-## Gráficos de ingresantes solamente
-
-Algún gráfico que muestre la magnitud de la diferencia de postulantes e ingresantes.
-
-```{r graph-8}
-x <- dat[dat$year >= 2016, ]
-x$ingreso <- ifelse(x$ingreso == 1, "Ingresó", "No ingresó")
-
-ggplot(x) +
-  geom_bar(aes(year, fill = factor(ingreso, levels = c("No ingresó", "Ingresó"))), position = "dodge") +
-  labs(fill = "Resultado de postulación", x = "Año", y = "Número de postulantes")
-
-ggsave(here("output/graph_8.png"))
-```
-
-Hacer los mismos gráficos
-
-```{r graph-9}
-dat_ingresantes <- filter(dat, ingreso == 1)
-
-x <- dat_ingresantes
-x$genero_factor <- ifelse(
-  is.na(x$genero),
-  "No sexo asignado",
-  ifelse(
-    x$genero == 1,
-    "Femenino",
-    "Masculino"
-  )
-)
-x$genero_factor <- factor(x$genero_factor, levels = c("No sexo asignado", "Masculino", "Femenino"))
-
-ggplot(x) +
-  geom_bar(aes(year, fill = genero_factor)) +
-  labs(x = "Año", y = "Número de ingresantes", fill = "Sexo") +
-  scale_fill_manual(values = c("No sexo asignado" = "grey80", "Masculino" = "#619CFF", "Femenino" = "#F8766D"))
-
-ggsave(here("output/graph_9.png"))
-```
-
-```{r graph-10}
-x <- dat_ingresantes
-x$especialidad_tipo <- ifelse(
-  dat_ingresantes$especialidad_tipo == "laboratorio_diagnostica", "De laboratorio y diagnóstica",
-  ifelse(
-    dat_ingresantes$especialidad_tipo == "medico_quirurgica", "Médico-quirúrgica",
-    ifelse(
-      dat_ingresantes$especialidad_tipo == "quirurgica", "Quirúrgica", "Clínica"
-    )
-  )
-)
-ggplot(x) +
-  geom_bar(
-    aes(year, fill = factor(especialidad_tipo, levels = c(
-      "De laboratorio y diagnóstica", "Médico-quirúrgica", "Quirúrgica", "Clínica")
-    ))
-  ) + labs(x = "Año", y = "Número de ingresantes", fill = "Tipo de especialidad")
-
-ggsave(here("output/graph_10.png"))
-```
-
-```{r graph-11}
-# Separado en 4 subgrupos
-p_specialty_types <- x %>%
-  group_by(year, especialidad_tipo) %>%
-  summarize(p = mean(genero, na.rm = TRUE))
-
-p_years <- x %>% group_by(year) %>% summarize(p_total = mean(genero, na.rm = TRUE))
-
-p_data <- left_join(p_specialty_types, p_years, by = c("year"))
-
-ggplot(p_data) +
-  geom_line(aes(year, p_total)) +
-  geom_line(aes(year, p, color = especialidad_tipo)) +
-  scale_x_continuous(breaks = seq(2013, 2023, by = 1)) +
-  labs(x = "Año", y = "Proporción de mujeres", color = "Tipo de especialidad")
-
-ggsave(here("output/graph_11.png"))
-```
-
-Lo mismo, separado solamente en especialidades quirúrgicas vs. clínicas.
-
-```{r graph-12}
-x$especialidad_quirurgica <- ifelse(
-  x$especialidad_quirurgica == 1, "Quirúrgica", "Clínica"
-)
-ggplot(x) +
-  geom_bar(aes(year, fill = factor(
-    especialidad_quirurgica, levels = c("Quirúrgica", "Clínica")
-  ))) +
-  labs(x = "Año", y = "Número de ingresantes", fill = "Tipo de especialidad")
-
-ggsave(here("output/graph_12.png"))
-```
-
-
-```{r graph-13}
-x <- filter(dat, year >= 2016, ingreso == 1)
-
-# Separado en 2 subgrupos
-p_specialty_types <- x %>%
-  group_by(year, especialidad_quirurgica) %>%
-  summarize(p = mean(genero, na.rm = TRUE))
-
-p_years <- x %>% group_by(year) %>% summarize(p_total = mean(genero, na.rm = TRUE))
-
-p_data <- left_join(p_specialty_types, p_years, by = c("year"))
-p_data$especialidad_quirurgica <- ifelse(
-  p_data$especialidad_quirurgica == 1, "Quirúrgica", "Clínica"
-)
-
-ggplot(p_data) +
-  geom_line(aes(year, p_total)) +
-  geom_line(aes(year, p, color = as.factor(especialidad_quirurgica))) +
-  scale_x_continuous(breaks = seq(2013, 2023, by = 1)) +
-  labs(x = "Año", y = "Proporción de mujeres", color = "Tipo de especialidad") +
-  geom_hline(yintercept = 0.5, linetype = "dashed", color = "red")
-
-ggsave(here("output/graph_13.png"))
-```
-
-## Comparación en los ingresantes hombres vs. mujeres
-
-Esto se puede representar mejor en una tabla comparativa con las siguientes columnas:
-
-- Año
-- Género (hombre vs. mujeres)
-  - Número de postulantes
-  - Número de ingresantes
-  - Porcentaje de ingresantes (del género en cuestión)
-
-```{r tabla-7}
-x <- dat %>% group_by(year, genero, ingreso) %>% count()
-x
-write.table(x, here("output/tabla_7.txt"), sep = "\t", row.names = FALSE)
-
-y <- dat %>%
-  filter(!is.na(genero)) %>%
-  group_by(year, genero) %>%
-  summarize(p_quirugica = mean(ingreso))
-y
-write.table(y, here("output/tabla_7-percentages.txt"), sep = "\t", row.names = FALSE)
-```
-
-## Prueba estadística
-
-Primero realizar un modelo estadístico simple para comprobar que el año de postulación es aún estadísticamente significativo como predictor del género entre los ingresantes solamente.
-
-Probar estadísticamente si la tendencia de género se conserva también en las distintas especialidades. Hacer lo mismo que al inicio en el estudio de tendencias, solo que exclusivamente para los ingresantes
-
-```{r model-7}
-x <- dat[!is.na(dat$genero), ]
-x <- x[x$ingreso == 1 & x$year >= 2016, ]
-
-model <- glm(genero ~ year, family = "binomial", data = x)
-model_summary <- summary(model)
-model_summary$coefficients[2, 4] # p-value
-round(cbind(exp(coef(model)), exp(confint(model))), 3)
-
-model <- glm(genero ~ year + especialidad, family = "binomial", data = x)
-model_summary <- summary(model)
-model_summary$coefficients[2, "Pr(>|z|)"] # adjusted p-value of year
-# ... and the OR + confidence interval
-exp(coef(model)[2])
-exp(confint(model, parm = 2))
-```
-
-Además, también se puede corroborar si hay diferencias estadísticamente significativas en el ingreso de mujeres y hombres a las distintas especialidades. Para esto se puede hacer una regresión logística en la que el outcome sería el ingreso y los predictors el género y el año (para ajustar).
-
-```{r model-8}
-# Modelo simple 
-x <- dat[!is.na(dat$genero), ]
-x <- x[x$year >= 2016, ]
-model <- glm(ingreso ~ genero, family = "binomial", data = x)
-model_summary <- summary(model)
-model_summary$coefficients[2, 4] # p-value
-round(cbind(exp(coef(model)), exp(confint(model))), 2)
-
-# Agregando el año
-model <- glm(ingreso ~ genero + year, family = "binomial", data = x)
-model_summary <- summary(model)
-model_summary$coefficients[2, 4] # p-value
-round(cbind(exp(coef(model)), exp(confint(model))), 2)
-```
-
-Análisis estadístico de especialidades clínicas vs. quirúrgicas.
-
-```{r}
-# ---- without effect modification ----
-x <- dat[!is.na(dat$genero) & dat$year >= 2016, ]
-x <- x[x$ingreso == 1, ]
-model <- glm(genero ~ year + especialidad_quirurgica, family = "binomial", data = x)
-model_summary <- summary(model)
-round(cbind(exp(coef(model)), exp(confint(model))), 2)
-
-# ---- with effect modification ----
-model <- glm(genero ~ year * especialidad_quirurgica, family = "binomial", data = x)
-model_summary <- summary(model)
-round(cbind(exp(coef(model)), exp(confint(model))), 2)
-```
-
-
-# Análisis: especialidades vs. subespecialidades
-
-Observar la magnitud de la diferencia
-
-```{r}
-x <- dat
-x$subespecialidad <- ifelse(x$subespecialidad == 1, "Subespecialidad", "Especialidad")
-
-ggplot(x) +
-  geom_bar(aes(year, fill = factor(subespecialidad, levels = c("Subespecialidad", "Especialidad"))), position = "dodge") +
-  labs(fill = "Nivel de especialización", x = "Año", y = "Número de postulantes")
-```
-
-Obtener los mismos gráficos para especialidades y subespecialidades.
-
-```{r}
-dat_subspecialty <- dat[dat$subespecialidad == 1, ]
-
-x <- dat_subspecialty
-x$genero_factor <- ifelse(
-  is.na(x$genero),
-  "No sexo asignado",
-  ifelse(
-    x$genero == 1,
-    "Femenino",
-    "Masculino"
-  )
-)
-x$genero_factor <- factor(x$genero_factor, levels = c("No sexo asignado", "Masculino", "Femenino"))
-
-ggplot(x) +
-  geom_bar(aes(year, fill = genero_factor)) +
-  labs(x = "Año", y = "Número de postulantes", fill = "Sexo") +
-  scale_fill_manual(values = c("No sexo asignado" = "grey80", "Masculino" = "#619CFF", "Femenino" = "#F8766D"))
-```
-
-Graficar línea de subespecialidades vs. tendencia global.
-
-```{r}
-# Separado en 2 subgrupos
-p_specialty_types <- dat %>%
-  group_by(year, subespecialidad) %>%
-  summarize(p = mean(genero, na.rm = TRUE))
-
-p_years <- dat %>% group_by(year) %>% summarize(p_total = mean(genero, na.rm = TRUE))
-
-p_data <- left_join(p_specialty_types, p_years, by = c("year"))
-p_data$subespecialidad <- ifelse(
-  p_data$subespecialidad == 1, "Subespecialidad", "Especialidad"
-)
-
-ggplot(p_data) +
-  geom_line(aes(year, p_total)) +
-  geom_line(aes(year, p, color = as.factor(subespecialidad))) +
-  scale_x_continuous(breaks = seq(2013, 2023, by = 1)) +
-  labs(x = "Año", y = "Proporción de mujeres", color = "Nivel de especialización")
-
-```
-
-# Análisis: región
-
-Primero, visualizar distribución de género general en las distintas regiones.
-
-```{r graph-14}
-x <- dat
-x$genero_factor <- ifelse(
-  is.na(x$genero),
-  "No sexo asignado",
-  ifelse(
-    x$genero == 1,
-    "Femenino",
-    "Masculino"
-  )
-)
-x$genero_factor <- factor(
-  x$genero_factor,
-  levels = c("No sexo asignado", "Masculino", "Femenino")
-)
-
-x$region <- factor(
-  x$region,
-  levels = c("Lima", "Norte", "Sur", "Centro", "Oriente")
-)
-
-ggplot(x) +
-  geom_bar(aes(region, fill = genero_factor)) +
-  labs(x = "Región", y = "Número de postulantes", fill = "Sexo") +
-  scale_fill_manual(values = c("No sexo asignado" = "grey80", "Masculino" = "#619CFF", "Femenino" = "#F8766D"))
-
-ggsave(here("output/graph_14.png"))
-```
-
-Visualizar estos datos en una tabla con las siguientes columnas:
-
-- Año
-- Región
-  - Número de postulantes (total)
-  - Número de postulantes con género asignado
-  - Número de mujeres y hombre (y porcentajes)
-
-```{r tabla-8}
-x <- dat %>% group_by(year, region) %>%
-  summarize(
-    n_postulantes = length(year),
-    n_genero = sum(!is.na(genero)),
-    p_genero = sum(!is.na(genero)) / length(year),
-    n_mujeres = sum(genero == 1, na.rm = TRUE),
-    p_mujeres = sum(genero == 1, na.rm = TRUE) / sum(!is.na(genero)),
-    n_hombres = sum(genero == 0, na.rm = TRUE),
-    p_hombres = sum(genero == 0, na.rm = TRUE) / sum(!is.na(genero))
-  )
-x
-
-write.table(x, here("output/tabla_8.txt"), sep = "\t", row.names = FALSE)
-```
-
-## Gráficos por región
-
-Usar gráficos de barras y líneas para representar la distribución de género y tendencias agrupadas por región (como se hizo anteriormente).
-
-```{r graph-15}
-x <- dat
-
-x$region <- factor(
-  x$region,
-  levels = c("Oriente", "Centro", "Norte", "Sur", "Lima")
-)
-
-ggplot(x) +
-  geom_bar(aes(year, fill = region)) +
-  labs(x = "Año", y = "Número de postulantes", fill = "Región")
-
-ggsave(here("output/graph_15.png"))
-```
-
-```{r graph-16}
-p_region <- dat %>%
-  group_by(year, region) %>%
-  summarize(p = mean(genero, na.rm = TRUE))
-
-p_years <- dat %>%
-  group_by(year) %>%
-  summarize(p_total = mean(genero, na.rm = TRUE))
-
-p_data <- left_join(p_region, p_years, by = c("year"))
-p_data <- p_data[!is.na(p_data$region), ] # Removing missing values
-
-ggplot(p_data) +
-  geom_line(aes(year, p_total), size = 0.7) +
-  geom_line(aes(year, p, color = as.factor(region))) +
-  scale_x_continuous(breaks = seq(2013, 2023, by = 1)) +
-  labs(x = "Año", y = "Proporción de mujeres", color = "Región") +
-  geom_hline(yintercept = 0.5, linetype = "dashed", color = "red")
-
-ggsave(here("output/graph_16.png"))
-```
-
-## Prueba estadística
-
-Ahora, se podría realizar una prueba estadística para determinar si existen diferencias significativas en la distribución de género en las distintas regiones (independientemente del tiempo y ajustado al tiempo).
-
-Para esto se puede realizar una prueba estadística para cada una de las especialidades, para compararlas con el resto (distribución global).
-
-```{r model-9}
-# ---- Modelo sin incluir variable de tiempo (año) ----
-
-x <- dat[!is.na(dat$genero), ]
-x <- x[!is.na(x$region), ] # Remove missing regions
-regions <- unique(x$region)
-list_models <- vector("list", length(regions))
-
-for (i in seq_along(regions)) {
-  list_models[[i]] <- glm(
-    genero ~ ifelse(
-      region == regions[[i]],
-      1, 0
-    ),
-    data = x
-  )
-}
-list_models_summary <- lapply(list_models, summary)
-names(list_models_summary) <- regions
-
-df_res <- data.frame("Región" = regions)
-df_res$p_values <- unlist(lapply(list_models_summary, \(x) x$coefficients[2, 4]))
-
-# Bonferroni correction
-p_value_corrected <- 0.05 / nrow(df_res)
-
-or_values <- conf_int_values <- vector("list", length(list_models))
-for (i in seq_along(list_models)) {
-  or_values[[i]] <- exp(coef(list_models[[i]]))[2] # OR of specialty
-  conf_int_values[[i]] <- exp(
-    suppressMessages(
-      # Confidence interval of specialty
-      confint(list_models[[i]], level = 1 - p_value_corrected)[2, ]
-    )
-  )
-}
-df_res$or_values <- unlist(or_values)
-df_res$conf_int_values <- conf_int_values
-
-i <- df_res$p_values <= p_value_corrected
-df_res$p_value_significant <- i
-regions[i]
-
-df_res$conf_int_lower <- unlist(lapply(df_res$conf_int_values, \(x) x[1]))
-df_res$conf_int_upper <- unlist(lapply(df_res$conf_int_values, \(x) x[2]))
-df_res <- df_res[, colnames(df_res) != "conf_int_values"]
-df_res
-```
-
-```{r tabla-9}
-# ---- Modelo incluyendo (ajustado a) la variable tiempo (año) ----
-
-x <- dat[!is.na(dat$genero), ]
-x <- x[!is.na(x$region), ] # Remove missing regions
-regions <- unique(x$region)
-list_models <- vector("list", length(regions))
-
-for (i in seq_along(regions)) {
-  list_models[[i]] <- glm(
-    genero ~ ifelse(
-      region == regions[[i]],
-      1, 0
-    ) + year,
-    data = x
-  )
-}
-list_models_summary <- lapply(list_models, summary)
-names(list_models_summary) <- regions
-
-df_res <- data.frame("Región" = regions)
-df_res$p_values <- unlist(lapply(list_models_summary, \(x) x$coefficients[2, 4]))
-
-# Bonferroni correction
-p_value_corrected <- 0.05 / nrow(df_res)
-
-or_values <- conf_int_values <- vector("list", length(list_models))
-for (i in seq_along(list_models)) {
-  or_values[[i]] <- exp(coef(list_models[[i]]))[2] # OR of specialty
-  conf_int_values[[i]] <- exp(
-    suppressMessages(
-      # Confidence interval of specialty
-      confint(list_models[[i]], level = 1 - p_value_corrected)[2, ]
-    )
-  )
-}
-df_res$or_values <- unlist(or_values)
-df_res$conf_int_values <- conf_int_values
-
-i <- df_res$p_values <= p_value_corrected
-df_res$p_value_significant <- i
-regions[i]
-
-df_res$conf_int_lower <- unlist(lapply(df_res$conf_int_values, \(x) x[1]))
-df_res$conf_int_upper <- unlist(lapply(df_res$conf_int_values, \(x) x[2]))
-df_res <- df_res[, colnames(df_res) != "conf_int_values"]
-df_res
-
-write.table(df_res, here("output/tabla_9.txt"), sep = "\t", row.names = FALSE)
-```
-
-```{r model-10}
-# ---- Modelo excluyendo a la región Oriente ----
-
-x <- dat[!is.na(dat$genero), ]
-x <- x[!is.na(x$region), ] # Remove missing regions
-x <- x[x$region != "Oriente", ]
-
-regions <- unique(x$region)
-list_models <- vector("list", length(regions))
-
-for (i in seq_along(regions)) {
-  list_models[[i]] <- glm(
-    genero ~ ifelse(
-      region == regions[[i]],
-      1, 0
-    ) + year,
-    data = x
-  )
-}
-list_models_summary <- lapply(list_models, summary)
-names(list_models_summary) <- regions
-
-df_res <- data.frame("Región" = regions)
-df_res$p_values <- unlist(lapply(list_models_summary, \(x) x$coefficients[2, 4]))
-
-# Bonferroni correction
-p_value_corrected <- 0.05 / nrow(df_res)
-
-or_values <- conf_int_values <- vector("list", length(list_models))
-for (i in seq_along(list_models)) {
-  or_values[[i]] <- exp(coef(list_models[[i]]))[2] # OR of specialty
-  conf_int_values[[i]] <- exp(
-    suppressMessages(
-      # Confidence interval of specialty
-      confint(list_models[[i]], level = 1 - p_value_corrected)[2, ]
-    )
-  )
-}
-df_res$or_values <- unlist(or_values)
-df_res$conf_int_values <- conf_int_values
-
-i <- df_res$p_values <= p_value_corrected
-df_res$p_value_significant <- i
-regions[i]
-
-df_res$conf_int_lower <- unlist(lapply(df_res$conf_int_values, \(x) x[1]))
-df_res$conf_int_upper <- unlist(lapply(df_res$conf_int_values, \(x) x[2]))
-df_res <- df_res[, colnames(df_res) != "conf_int_values"]
-df_res
-```
-
-
-```{r model-11}
-# ---- Modelo incuyendo interacción ----
-
-x <- dat[!is.na(dat$genero), ]
-regions <- unique(x$region)
-regions <- regions[!is.na(regions)] # remove NAs
-list_models <- vector("list", length(regions))
-
-for (i in seq_along(regions)) {
-  list_models[[i]] <- glm(
-    genero ~ ifelse(
-      region == regions[[i]],
-      1, 0
-    ) * year,
-    data = x
-  )
-}
-list_models_summary <- lapply(list_models, summary)
-names(list_models_summary) <- regions
-
-df_res <- data.frame("Región" = regions)
-df_res$p_values <- unlist(lapply(list_models_summary, \(x) x$coefficients[2, 4]))
-
-# Bonferroni correction
-p_value_corrected <- 0.05 / length(p_values)
-
-or_values <- conf_int_values <- vector("list", length(list_models))
-for (i in seq_along(list_models)) {
-  or_values[[i]] <- exp(coef(list_models[[i]]))[2] # OR of specialty
-  conf_int_values[[i]] <- exp(
-    suppressMessages(
-      # Confidence interval of specialty
-      confint(list_models[[i]], level = 1 - p_value_corrected)[2, ]
-    )
-  )
-}
-df_res$or_values <- unlist(or_values)
-df_res$conf_int_values <- conf_int_values
-
-i <- df_res$p_values <= p_value_corrected
-df_res$p_value_significant <- i
-regions[i]
-
-df_res$conf_int_lower <- unlist(lapply(df_res$conf_int_values, \(x) x[1]))
-df_res$conf_int_upper <- unlist(lapply(df_res$conf_int_values, \(x) x[2]))
-df_res <- df_res[, colnames(df_res) != "conf_int_values"]
-df_res
-```
-
-Si se realiza un modelo estadístico final, ajustando por región y especialidades.
-
-```{r model-12}
-x <- dat[!is.na(dat$genero), ]
-model <- glm(genero ~ year + region + especialidad, family = "binomial", data = x)
-model_summary <- summary(model)
-model_summary$coefficients[2, ] # p_value
-exp(coef(model)[2]) # odds ratio
-exp(confint(model, parm = 2)) # confidence interval
-```
-
-También se podría hacer un análisis del peor o mejor caso (todos los datos faltantes que sean mujeres o todos los datos faltantes que sean hombres).
-
-```{r}
-# Worst and best case analysis
-x <- dat
-x$genero <- ifelse(is.na(x$genero), 1, x$genero) # 1 or 0
-model <- glm(genero ~ year + region + especialidad, family = "binomial", data = x)
-model_summary <- summary(model)
-model_summary
-```
 
 
 
