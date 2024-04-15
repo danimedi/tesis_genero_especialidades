@@ -43,9 +43,9 @@ pacman::p_load(
   lmtest,       # pruebas de razón de verosimilitud
   parameters,   # alternativa para ordenar los resultados de las regresiones
   ver           # alternativa para visualizar gráficos de bosque
-  )
+)
 
-dat <- suppressMessages(read_csv(here("full_deidentified_data.csv")))
+dat <- suppressMessages(read_csv(here("data/full_deidentified_data.csv")))
 ```
 
 # Estadísticas descriptivas generales
@@ -208,7 +208,7 @@ ggplot(x, aes(year, p_mujeres, color = reorder(especialidad,-p_mujeres))) +
 ```{r}
 
 nrow(dat) ## 67007
-data <- dat %>%filter(year>2016)
+data <- dat %>%filter(year >= 2016)
 nrow(data) ## 61748
 
 data <- data %>% filter(!is.na(genero))
@@ -240,7 +240,6 @@ skim(data2)
 
 # tabla 1
 
-
 CreateTableOne(data = data2)
 
 # vs
@@ -248,11 +247,11 @@ CreateTableOne(data = data2)
 tabla_1a <- compareGroups(data = data2)
 tabla1 <- createTable(tabla_1a)
 tabla1  
-#export2xls(tabla1, "tabla1.xlsx")
+export2xls(tabla1, here("output/tabla1.xlsx"))
 
 # vs
 data2 %>% 
-tbl_summary()  
+tbl_summary()
 
 
 
@@ -263,7 +262,7 @@ tbl_summary(by = year2,
             label  = list(                                        
       genero2   ~ "Sexo"),                           
     missing_text = "Missing" )  %>% 
-  add_p() 
+  add_p()
 
 
 data2 %>% 
@@ -320,7 +319,7 @@ icc
 #STEP #2: Building the Intermediate Models (corresponding to Sub-Appendix C)#
 #############################################################################
 # Below are the commands to run the constrained intermediate model (CIM); 
-# the model contains all level-1 variables, all level-2 variables well as all intra-level interactions).
+# the model contains all level-1 variables, all level-2 variables as well as all intra-level interactions).
 
 CIM <- glmer(ingreso ~ genero2 + region + year2 +( 1 | especialidad), data=data3, family = "binomial")
 summary(CIM)
