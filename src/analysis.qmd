@@ -5,17 +5,7 @@ format: html
 editor: source
 ---
 
-Este es el modelo final. Está para extraer el resto de cosas. Creo que se puede mejorar sus gráficos, pero necesitamos reunirnos para definir qué cosas van y qué no van.
-
-Consejo: no se debería hacer un modelo para outcome sexo, debido a que solo tenemos en la base aquellas personas que postularon y la idea sería tener un grupo de aquellos que no postularon (pero podín hacerlo) y comparar si hay diferencias pr el año región, etc.
-
-Rehice el análisis y por ahí dejé sugerencias y varios métodos para que R le haga las tablas y solo tenga que exportar y editar
-
-Outcome: género femenino = a buscar qué factores explican quel a postulante sea mujer y no hombre (o si quieres ver distribuciones nos podrían criticar) 
-
-Mejor eso lo presentamos como gráficos y de forma descriptiva.
-
-
+Cargar paquetes utilizados.
 
 ```{r}
 library(here)
@@ -24,10 +14,11 @@ library(dplyr)
 library(ggplot2)
 library(tableone)
 library(ggsci)
-library(ggthemes)   
-library(broom.mixed)   
-
+library(ggthemes)
+library(broom.mixed)
 library(compareGroups)
+library(lme4)
+library(sjPlot)
 
 pacman::p_load(
   rio,          # Importación de ficheros
@@ -44,13 +35,33 @@ pacman::p_load(
   parameters,   # alternativa para ordenar los resultados de las regresiones
   ver           # alternativa para visualizar gráficos de bosque
 )
-
-dat <- suppressMessages(read_csv(here("data/full_deidentified_data.csv")))
 ```
 
-# Estadísticas descriptivas generales
+Cargar datos y transformar columnas.
 
-Algunos datos generales
+```{r}
+dat <- suppressMessages(read_csv(here("data/full_deidentified_data.csv")))
+nrow(dat) ## 67007
+dat <- dat %>% filter(year >= 2016)
+nrow(dat) ## 49213
+dat <- dat %>% filter(!is.na(genero))
+nrow(dat) ## 48013
+
+dat$ingreso <- dat$ingreso %>%  factor(levels = c(0,1),
+                                        labels = c("No","Sí"))
+dat$genero2 <- dat$genero %>%  factor(levels = c(0,1),
+                                        labels = c("Masculino","Femenino"))
+dat$year2 <- dat$year %>%  as.factor()
+dat$especialidad_tipo <- dat$especialidad_tipo %>%  as.factor()
+dat$region <- dat$region %>%  as.factor()
+dat$especialidad_quirurgica <- dat$especialidad_quirurgica %>%  factor(levels = c(0,1),
+                                        labels = c("No","Sí"))
+dat$subespecialidad <- dat$subespecialidad %>%  factor(levels = c(0,1),
+                                        labels = c("No","Sí"))
+```
+
+
+# Estadísticas generales
 
 ```{r}
 # Número total de postulantes
@@ -70,111 +81,7 @@ sum(dat$genero == 1, na.rm = TRUE) / sum(!is.na(dat$genero))
 sum(dat$genero == 0, na.rm = TRUE) / sum(!is.na(dat$genero))
 ```
 
-## Distribución de género en los distintos años
-
-La tabla 1 incluye las siguientes columnas:
-
--   Año
--   Número de postulantes
--   Número y porcentaje de postulantes con género asignado
--   Número de mujeres y hombres postulantes (con el porcentaje de mujeres)
-
-```{r tabla-1}
-res <- dat %>%
-  group_by(year) %>%
-  summarize(
-    n_postulantes = length(year),
-    n_genero = sum(!is.na(genero)),
-    p_genero = sum(!is.na(genero)) / length(year),
-    n_mujeres = sum(genero == 1, na.rm = TRUE),
-    p_mujeres = sum(genero == 1, na.rm = TRUE) / sum(!is.na(genero)),
-    n_hombres = sum(genero == 0, na.rm = TRUE),
-    p_hombres = sum(genero == 0, na.rm = TRUE) / sum(!is.na(genero))
-  )
-res
-write.table(res, here("output/tabla_1.txt"), sep = "\t", row.names = FALSE)
-```
-
-
-# Comparación de especialidades
-
-## Distribución de género en las distintas especialidades.
-
-Esta tabla estratifica en las distintas especialidades.
-
-Las columnas de esta tabla son:
-
--   Especialidad
--   Número de postulantes
--   Número de mujeres y hombres
--   Porcentaje de mujeres y hombres
-
-```{r tabla-2}
-res <- dat %>%
-  group_by(especialidad) %>%
-  summarize(
-    n_postulantes = length(especialidad),
-    n_genero = sum(!is.na(genero)),
-    p_genero = sum(!is.na(genero)) / length(especialidad),
-    n_mujeres = sum(genero == 1, na.rm = TRUE),
-    p_mujeres = sum(genero == 1, na.rm = TRUE) / sum(!is.na(genero)),
-    n_hombres = sum(genero == 0, na.rm = TRUE),
-    p_hombres = sum(genero == 0, na.rm = TRUE) / sum(!is.na(genero))
-  )
-res
-write.table(res, here("output/tabla_2.txt"), sep = "\t", row.names = FALSE)
-
-```
-
-Esta tabla grande se puede separar en tablas más pequeñas.
-
-```{r}
-x <- filter(dat, subespecialidad == 0) # Remove subspecialties
-res <- x %>%
-  group_by(especialidad) %>%
-  summarize(
-    n_postulantes = length(especialidad),
-    n_genero = sum(!is.na(genero)),
-    p_genero = sum(!is.na(genero)) / length(especialidad),
-    n_mujeres = sum(genero == 1, na.rm = TRUE),
-    p_mujeres = sum(genero == 1, na.rm = TRUE) / sum(!is.na(genero)),
-    n_hombres = sum(genero == 0, na.rm = TRUE),
-    p_hombres = sum(genero == 0, na.rm = TRUE) / sum(!is.na(genero))
-  )
-res <- filter(res, n_postulantes > 20) # remove those with less than 20 applicants
-write.table(
-  arrange(res, p_mujeres),
-  here("output/tabla_2-mas_hombres.txt"), sep = "\t", row.names = FALSE
-)
-write.table(
-  arrange(res, p_hombres),
-  here("output/tabla_2-mas_mujeres.txt"), sep = "\t", row.names = FALSE
-)
-```
-
-
-El código a continuación genera gráficos de la distribución de género de cada una de las especialidades.
-
-```{r graphs-1}
-i_no_gender <- is.na(dat$genero)
-x <- dat[!i_no_gender, ] %>%
-  group_by(year, especialidad) %>%
-  summarize(women = mean(genero))
-
-for (specialty in unique(x$especialidad)) {
-  i <- x$especialidad == specialty
-  n <- sum(dat[!i_no_gender, ]$especialidad == specialty)
-  p <- ggplot(x[i, ], aes(year, women)) +
-    geom_line() +
-    ggtitle(specialty) +
-    labs(subtitle = paste0("Número de personas: ", n), x = "Año", y = "Proporción de mujeres") +
-    scale_x_continuous(breaks = seq(2013, 2023, by = 1))
-  ggsave(here("output", paste0("graph_1-", specialty, ".png")))
-  print(p)
-}
-```
-
-Gráfico con las especialidades con mayor número de postulantes.
+# Gráficos
 
 ```{r}
 # Filter the specialties with most female applicants 
@@ -202,174 +109,120 @@ ggplot(x, aes(year, p_mujeres, color = reorder(especialidad,-p_mujeres))) +
 ```
 
 
-## Prueba estadística
-
+# Tabla 1
 
 ```{r}
+x <- dat[c("year2", "genero2", "ingreso", "especialidad_tipo", "subespecialidad", "region")]
+skim(x)
+CreateTableOne(data = x) # option 1
 
-nrow(dat) ## 67007
-data <- dat %>%filter(year >= 2016)
-nrow(data) ## 61748
-
-data <- data %>% filter(!is.na(genero))
-nrow(data) ## 60316
-
-data$ingreso <- data$ingreso %>%  factor(levels = c(0,1),
-                                        labels = c("No","Sí"))
-
-data$genero2 <- data$genero %>%  factor(levels = c(0,1),
-                                        labels = c("Masculino","Femenino"))
-
-data$year2 <- data$year %>%  as.factor()
-
-data$especialidad_tipo <- data$especialidad_tipo %>%  as.factor()
-
-data$region <- data$region %>%  as.factor()
-
-data$especialidad_quirurgica <- data$especialidad_quirurgica %>%  factor(levels = c(0,1),
-                                        labels = c("No","Sí"))
-
-data$subespecialidad <- data$subespecialidad %>%  factor(levels = c(0,1),
-                                        labels = c("No","Sí"))
-
-
-data2 <- data %>% dplyr::select(year2, genero2, ingreso, especialidad_tipo, 
-    especialidad_quirurgica, subespecialidad, region)
-
-skim(data2)
-
-# tabla 1
-
-CreateTableOne(data = data2)
-
-# vs
-
-tabla_1a <- compareGroups(data = data2)
-tabla1 <- createTable(tabla_1a)
+# Option 2
+tabla1 <- compareGroups(data = x)
+tabla1 <- createTable(tabla1)
 tabla1  
 export2xls(tabla1, here("output/tabla1.xlsx"))
 
-# vs
-data2 %>% 
+# Option 3
+x %>% 
 tbl_summary()
-
-
-
-# Tabla 2 y 3
-
-data2 %>% 
-tbl_summary(by = year2,
-            label  = list(                                        
-      genero2   ~ "Sexo"),                           
-    missing_text = "Missing" )  %>% 
-  add_p()
-
-
-data2 %>% 
-tbl_summary(by = genero2,
-    missing_text = "Missing" )  %>% 
-  add_p() 
-
-
-# tabla 4 : modelo simple :D 
-data2<- na.omit(data2)
-
-data2 %>% 
-  tbl_uvregression(                         ## produce una tabla univariante
-    method = glm,                           ## define la regresión que se desea ejecutar (modelo lineal generalizado)
-    y = ingreso,                            ## define la variable de resultado
-    method.args = list(family = binomial),  ## define el tipo de glm que se quiere ejecutar (logístico)
-    exponentiate = TRUE                     ## exponencia para producir odds ratios (en lugar de log odds)
-  )
-
-
-
-
- tbl_regression(final_mv_reg, exponentiate = TRUE)
-
-
 ```
 
-
+# Tablas 2 y 3
 
 ```{r}
-library(lme4)
-#####################################################################
-#STEP #1: Building the Empty Model (corresponding to Sub-Appendix B)#
-#####################################################################
+x %>% 
+  tbl_summary(
+    by = year2,
+    label = list(genero2   ~ "Sexo"),                           
+    missing_text = "Missing" 
+  ) %>%
+  add_p() %>%
+  add_overall()
 
-#Below are the commands to run an empty model, that is, a model containing no predictors, 
-# and calculate the intraclass correlation coefficient (ICC; the degree of homogeneity of the outcome within clusters).
 
-# variables : year2, genero2, ingreso, especialidad_tipo, especialidad_quirurgica, subespecialidad, region
-data3 <- data %>% dplyr::select(year2, genero2, ingreso, especialidad, especialidad_tipo, 
-    especialidad_quirurgica, subespecialidad, region)
-    
-    
-M0 <- glmer(ingreso ~ ( 1 | especialidad), data=data3, family = "binomial")
-summary(M0)
+x %>% 
+  tbl_summary(by = genero2, missing_text = "Missing") %>%
+  add_p() %>%
+  add_overall()
+```
 
-icc <- M0@theta[1]^2/ (M0@theta[1]^2 + (3.14159^2/3))
+# Tabla 4
+
+```{r}
+x <- na.omit(x)
+
+x %>%
+  tbl_uvregression(
+    method = glm,
+    y = ingreso,
+    method.args = list(family = binomial),
+    exponentiate = TRUE
+  )
+```
+
+# Generalized linear mixed-effects models
+
+```{r}
+# ---- Step 1: Building empty model ----
+
+x <- dat[c("year2", "genero2", "ingreso", "especialidad", "especialidad_tipo", "region")]
+   
+model_empty <- glmer(ingreso ~ ( 1 | especialidad), data = x, family = "binomial")
+summary(model_empty)
+
+icc <- model_empty@theta[1]^2/ (model_empty@theta[1]^2 + (3.14159^2 / 3))
 icc
 
-#The intraclass correlation coefficient is ICC = .21; 
-#This indicates that 21% of the chance of "ingresar is explained by between-classroom differences 
+# Intraclass correlation coefficient (ICC) = 0.21
+# This indicates that 21% of the chance of emtering is explained by between-classroom differences 
 
-#############################################################################
-#STEP #2: Building the Intermediate Models (corresponding to Sub-Appendix C)#
-#############################################################################
-# Below are the commands to run the constrained intermediate model (CIM); 
-# the model contains all level-1 variables, all level-2 variables as well as all intra-level interactions).
+# ---- Step 2: Building the intermediate models ----
 
-CIM <- glmer(ingreso ~ genero2 + region + year2 +( 1 | especialidad), data=data3, family = "binomial")
+# Constrained intermediate model (CIM), the model contains all level-1
+# variables, all level-2 variables as well as all intra-level interactions
+CIM <- glmer(
+  ingreso ~ genero2 + region + year2 + (1 | especialidad),
+  data = x,
+  family = "binomial"
+)
 summary(CIM)
 paste("FYI: The deviance of the CIM is:", CIM@devcomp$cmp[[8]])
 
-# Below are the commands to run the augmented intermediate model (AIM); 
-# the model similar to the constrained intermediate model with the exception that it includes the random slope term of "").
-
-
-AIM <- glmer(ingreso ~ genero2 + region  + year2 +( 1 + year2 | especialidad), data=data3, family = "binomial")
+# Augmented intermediate model (AIM), the model similar to the constrained
+# intermediate model with the exception that it includes the random slope term
+AIM <- glmer(
+  ingreso ~ genero2 + region  + year2 + (1 + year2 | especialidad),
+  data = x,
+  family = "binomial"
+)
 summary(AIM)
 paste("FYI: The deviance of the AIM is:", AIM@devcomp$cmp[[8]])
-#The random slope component is "especialidad.1  0.7720"  (corresponding to the variation of the effect of "especialidad" from one class to another);
+# The random slope component is ... .1  0.7720"  (corresponding to the variation of the effect of "especialidad" from one class to another);
 
-# see lme4 convergence warnings: troubleshooting https://rstudio-pubs-static.s3.amazonaws.com/33653_57fc7b8e5d484c909b615d8633c01d51.html
+# See lme4 convergence warnings: troubleshooting https://rstudio-pubs-static.s3.amazonaws.com/33653_57fc7b8e5d484c909b615d8633c01d51.html
+```
 
-# vi que en stata corre mas rapido
+Comparando ambos modelos, el modelo CIM (Constrained Intermediate Model) tuvo un mejor desempeño, por lo que este es el modelo elegido.
 
-#Below is the command to determine whether including the random slope of "especialidad" improves the model. 
-#The software performs a likelihood-ratio test LR X(1)²,  comparing the deviance of the CIM with the deviance of the AIM.
+```{r}
+# Likelihood-ratio test comparing the deviance of the CIM with the deviance of the AIM.
 anova(CIM, AIM)
+```
 
-#########
-#RESULTS#
-#########
-#The likelihood-ratio test is given by the anova function, and referred by the parameter Chisq = 26.896, Chi Df = 1, p < .001.
-#Thus, allowing the effect of "especialidad" to vary between classes improves the fit and it is better to take the random slope into account. 
+Modelo final ...
 
-
-# OJO TARDAN MUCHO EN CORRER LOS MODELOS
-
-# creo nos quedamos con 
-CIM1 <- glmer(ingreso ~ genero2 + region + year2 +especialidad_tipo + ( 1 | especialidad), data=data3, family = "binomial")
+```{r}
+CIM1 <- glmer(
+  ingreso ~ genero2 + region + year2 + especialidad_tipo + (1 | especialidad),
+  data = x,
+  family = "binomial"
+)
 
 tidy_robust(CIM1, exponentiate = T, conf.int = T)
-
-library(sjPlot)
-
-tab_model(CIM1,  show.re.var = T, show.reflvl = T,file="regression_ingresar.html")
-
-#########
-#RESULTS#
-#########
-#Regarding your main effect hypothesis, the effect of "genero" is significant, sexo femenino OR = 0.80, 95% CI [0.77 – 0.84]
-
-
-
-
-
-
+tab_model(
+  CIM1,
+  show.re.var = T, show.reflvl = T,
+  file = "output/model_output.html")
 ```
 
 
