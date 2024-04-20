@@ -16,8 +16,8 @@ library(tableone)
 library(ggsci)
 library(ggthemes)
 library(broom.mixed)
-library(compareGroups)
 library(lme4)
+library(compareGroups)
 library(sjPlot)
 
 pacman::p_load(
@@ -172,8 +172,7 @@ summary(model_empty)
 
 icc <- model_empty@theta[1]^2/ (model_empty@theta[1]^2 + (3.14159^2 / 3))
 icc
-
-# Intraclass correlation coefficient (ICC) = 0.21
+# Intraclass correlation coefficient (ICC) = 0.1954432
 # This indicates that 21% of the chance of emtering is explained by between-classroom differences 
 
 # ---- Step 2: Building the intermediate models ----
@@ -187,6 +186,7 @@ CIM <- glmer(
 )
 summary(CIM)
 paste("FYI: The deviance of the CIM is:", CIM@devcomp$cmp[[8]])
+# "FYI: The deviance of the CIM is: 57838.1265957355"
 
 # Augmented intermediate model (AIM), the model similar to the constrained
 # intermediate model with the exception that it includes the random slope term
@@ -197,7 +197,7 @@ AIM <- glmer(
 )
 summary(AIM)
 paste("FYI: The deviance of the AIM is:", AIM@devcomp$cmp[[8]])
-# The random slope component is ... .1  0.7720"  (corresponding to the variation of the effect of "especialidad" from one class to another);
+# "FYI: The deviance of the AIM is: 57396.3677485944"
 
 # See lme4 convergence warnings: troubleshooting https://rstudio-pubs-static.s3.amazonaws.com/33653_57fc7b8e5d484c909b615d8633c01d51.html
 ```
@@ -207,11 +207,13 @@ Comparando ambos modelos, el modelo CIM (Constrained Intermediate Model) tuvo un
 ```{r}
 # Likelihood-ratio test comparing the deviance of the CIM with the deviance of the AIM.
 anova(CIM, AIM)
+# p-value: < 2.2e-16
 ```
 
 Modelo final ...
 
 ```{r}
+x <- dat[c("year2", "genero2", "ingreso", "especialidad", "especialidad_tipo", "region")]
 CIM1 <- glmer(
   ingreso ~ genero2 + region + year2 + especialidad_tipo + (1 | especialidad),
   data = x,
@@ -222,7 +224,8 @@ tidy_robust(CIM1, exponentiate = T, conf.int = T)
 tab_model(
   CIM1,
   show.re.var = T, show.reflvl = T,
-  file = "output/model_output.html")
+  file = here("output/model_output.html")
+)
 ```
 
 
