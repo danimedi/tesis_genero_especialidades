@@ -66,11 +66,6 @@ dat$subespecialidad <- dat$subespecialidad %>%  factor(levels = c(0,1),
 ```{r}
 # Número total de postulantes
 nrow(dat)
-# Número de postulantes con género asignado
-sum(!is.na(dat$genero))
-# Porcentaje de postulantes con género asignado
-i <- is.na(dat$genero)
-(1 - mean(i)) * 100
 # Número de mujeres ...
 sum(dat$genero == 1, na.rm = TRUE)
 # y de hombres
@@ -83,11 +78,14 @@ sum(dat$genero == 0, na.rm = TRUE) / sum(!is.na(dat$genero))
 
 # Gráficos
 
+## Especialidades más grandes
+
+Graficar la proporción de mujeres a lo largo del tiempo en la especialidades más grandes.
+
 ```{r}
-# Filter the specialties with most female applicants 
+# Filter the specialties with most applicants 
 j <- sort(table(dat$especialidad), decreasing = TRUE)[1:10]
 j <- names(j)
-
 x <- dat[dat$especialidad %in% j, ]
 
 # Make a line graph with those specialties
@@ -95,17 +93,48 @@ x <- x %>%
   group_by(year, especialidad) %>%
   dplyr::summarize(p_mujeres = mean(genero, na.rm = TRUE))
 
+# Global proportion
 p_years <- dat %>% group_by(year) %>% dplyr::summarize(p_total = mean(genero, na.rm = TRUE))
 x <- left_join(x, p_years, by = "year")
 
-ggplot(x, aes(year, p_mujeres, color = reorder(especialidad,-p_mujeres))) +
-  geom_point()+
-  geom_line(size=0.6) +
+especialidades_new_names <- data.frame(
+  old_names = c(
+    "DERMATOLOGIA",
+    "PEDIATRIA",
+    "PSIQUIATRIA",
+    "ANESTESIOLOGIA",
+    "OFTALMOLOGIA",
+    "GASTROENTEROLOGIA",
+    "GINECOLOGIA Y OBSTETRICIA",
+    "RADIOLOGIA",
+    "CIRUGIA GENERAL",
+    "ORTOPEDIA Y TRAUMATOLOGIA"
+  ),
+  new_names = c(
+    "Dermatología",
+    "Pediatría",
+    "Psiquiatría",
+    "Anestesiología",
+    "Oftalmología",
+    "Gastroenterología",
+    "Ginecología y obstetricia",
+    "Radiología",
+    "Cirugía general",
+    "Ortopedia y traumatología"
+  )
+)
+x <- left_join(x, especialidades_new_names, join_by(especialidad == old_names), keep = FALSE)
+x$especialidad <- x$new_names
+x$new_names <- NULL
+
+ggplot(x, aes(year, p_mujeres, color = reorder(especialidad, -p_mujeres))) +
+  geom_point() +
+  geom_line(size = 0.6) +
   scale_x_continuous(breaks = seq(2013, 2023, by = 1)) +
   labs(x = "Año", y = "Proporción de mujeres", color = "Especialidad") +
-  scale_y_continuous(limits = c(0,1), breaks=seq(0,1,0.2))+
+  scale_y_continuous(limits = c(0, 1), breaks = seq(0, 1, 0.1)) +
   scale_color_stata()
-
+ggsave(here("output/graph_1.png"))
 ```
 
 
