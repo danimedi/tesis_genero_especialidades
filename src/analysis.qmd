@@ -134,9 +134,69 @@ ggplot(x, aes(year, p_mujeres, color = reorder(especialidad, -p_mujeres))) +
   labs(x = "Año", y = "Proporción de mujeres", color = "Especialidad") +
   scale_y_continuous(limits = c(0, 1), breaks = seq(0, 1, 0.1)) +
   scale_color_stata()
-ggsave(here("output/graph_1.png"))
+ggsave(here("output/graph_1-postulantes.png"))
 ```
 
+Realizar un gráfico similar solamente con los ingresantes.
+
+```{r}
+# Only include the people who entered
+i <- dat$ingreso == "Sí"
+x <- dat[i, ]
+
+# Filter the specialties with most applicants 
+j <- sort(table(x$especialidad), decreasing = TRUE)[1:10]
+j <- names(j)
+x <- x[x$especialidad %in% j, ]
+
+# Make a line graph with those specialties
+x <- x %>%
+  group_by(year, especialidad) %>%
+  dplyr::summarize(p_mujeres = mean(genero, na.rm = TRUE))
+
+# Global proportion
+p_years <- dat %>% group_by(year) %>% dplyr::summarize(p_total = mean(genero, na.rm = TRUE))
+x <- left_join(x, p_years, by = "year")
+
+especialidades_new_names <- data.frame(
+  old_names = c(
+    "DERMATOLOGIA",
+    "PEDIATRIA",
+    "PSIQUIATRIA",
+    "ANESTESIOLOGIA",
+    "OFTALMOLOGIA",
+    "GASTROENTEROLOGIA",
+    "GINECOLOGIA Y OBSTETRICIA",
+    "RADIOLOGIA",
+    "CIRUGIA GENERAL",
+    "ORTOPEDIA Y TRAUMATOLOGIA"
+  ),
+  new_names = c(
+    "Dermatología",
+    "Pediatría",
+    "Psiquiatría",
+    "Anestesiología",
+    "Oftalmología",
+    "Gastroenterología",
+    "Ginecología y obstetricia",
+    "Radiología",
+    "Cirugía general",
+    "Ortopedia y traumatología"
+  )
+)
+x <- left_join(x, especialidades_new_names, join_by(especialidad == old_names), keep = FALSE)
+x$especialidad <- x$new_names
+x$new_names <- NULL
+
+ggplot(x, aes(year, p_mujeres, color = reorder(especialidad, -p_mujeres))) +
+  geom_point() +
+  geom_line(size = 0.6) +
+  scale_x_continuous(breaks = seq(2013, 2023, by = 1)) +
+  labs(x = "Año", y = "Proporción de mujeres", color = "Especialidad") +
+  scale_y_continuous(limits = c(0, 1), breaks = seq(0, 1, 0.1)) +
+  scale_color_stata()
+ggsave(here("output/graph_1-ingresantes.png"))
+```
 
 # Tabla 1
 
@@ -170,7 +230,7 @@ x %>%
 
 
 x %>% 
-  tbl_summary(by = genero2, missing_text = "Missing") %>%
+  tbl_summary(by = genero2, missing_text = "Missing", percent = "row") %>%
   add_p() %>%
   add_overall()
 ```
@@ -201,6 +261,7 @@ summary(model_empty)
 
 icc <- model_empty@theta[1]^2/ (model_empty@theta[1]^2 + (3.14159^2 / 3))
 icc
+saveRDS(icc, "output/icc.rds")
 # Intraclass correlation coefficient (ICC) = 0.1954432
 # This indicates that 21% of the chance of emtering is explained by between-classroom differences 
 
@@ -216,6 +277,7 @@ CIM <- glmer(
 summary(CIM)
 paste("FYI: The deviance of the CIM is:", CIM@devcomp$cmp[[8]])
 # "FYI: The deviance of the CIM is: 57838.1265957355"
+saveRDS(CIM, "output/CIM.rds")
 
 # Augmented intermediate model (AIM), the model similar to the constrained
 # intermediate model with the exception that it includes the random slope term
@@ -227,6 +289,7 @@ AIM <- glmer(
 summary(AIM)
 paste("FYI: The deviance of the AIM is:", AIM@devcomp$cmp[[8]])
 # "FYI: The deviance of the AIM is: 57396.3677485944"
+saveRDS(AIM, "output/AIM.rds")
 
 # See lme4 convergence warnings: troubleshooting https://rstudio-pubs-static.s3.amazonaws.com/33653_57fc7b8e5d484c909b615d8633c01d51.html
 ```
@@ -239,21 +302,65 @@ anova(CIM, AIM)
 # p-value: < 2.2e-16
 ```
 
-Modelo final ...
+Para el modelo final podemos separar la realización del modelo en tres:
+
+1. Modelo vacío ICC
+2. Modelo con variables a nivel individual
+3. Modelo de efectos aleatorios (completo)
+
+Primero realizaremos el modelo vacío
 
 ```{r}
 x <- dat[c("year2", "genero2", "ingreso", "especialidad", "especialidad_tipo", "region")]
-CIM1 <- glmer(
+
+# Vacío
+CIM_vacio <- glmer(
+  ingreso ~ (1 | especialidad),
+  data = x,
+  family = "binomial"
+)
+
+tidy_robust(CIM_vacio, exponentiate = T, conf.int = T)
+tab_model(
+  CIM_vacio,
+  show.re.var = T, show.reflvl = T,
+  file = here("output/model_empty_output.html")
+)
+```
+
+Posteriormente, realizaremos el modelo con variables a nivel individual
+
+```{r}
+# Simple (único)
+CIM_simple <- glmer(
+  ingreso ~ genero2 + (1 | especialidad),
+  data = x,
+  family = "binomial" # Si no sale usar quasipoisson
+)
+
+tidy_robust(CIM_simple, exponentiate = T, conf.int = T)
+tab_model(
+  CIM_simple,
+  show.re.var = T, show.reflvl = T,
+  file = here("output/model_simple_output.html")
+)
+```
+
+Finalmente, el modelo completo ...
+
+```{r}
+# Completo
+CIM_completo <- glmer(
   ingreso ~ genero2 + region + year2 + especialidad_tipo + (1 | especialidad),
   data = x,
   family = "binomial"
 )
 
-tidy_robust(CIM1, exponentiate = T, conf.int = T)
+tidy_robust(CIM_completo, exponentiate = T, conf.int = T)
 tab_model(
-  CIM1,
+  CIM_completo,
   show.re.var = T, show.reflvl = T,
-  file = here("output/model_output.html")
+  file = here("output/model_full_output.html")
 )
 ```
 
