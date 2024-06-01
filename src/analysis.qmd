@@ -317,7 +317,7 @@ x <- dat[c("year2", "genero2", "ingreso", "especialidad", "especialidad_tipo", "
 CIM_vacio <- glmer(
   ingreso ~ (1 | especialidad),
   data = x,
-  family = "binomial"
+  family = binomial(link = "logit")
 )
 
 tidy_robust(CIM_vacio, exponentiate = T, conf.int = T)
@@ -335,7 +335,7 @@ Posteriormente, realizaremos el modelo con variables a nivel individual
 CIM_simple <- glmer(
   ingreso ~ genero2 + (1 | especialidad),
   data = x,
-  family = "binomial" # Si no sale usar quasipoisson
+  family = binomial(link = "logit") # Si no sale usar quasipoisson
 )
 
 tidy_robust(CIM_simple, exponentiate = T, conf.int = T)
@@ -353,7 +353,7 @@ Finalmente, el modelo completo ...
 CIM_completo <- glmer(
   ingreso ~ genero2 + region + year2 + especialidad_tipo + (1 | especialidad),
   data = x,
-  family = "binomial"
+  family = binomial(link = "logit")
 )
 
 tidy_robust(CIM_completo, exponentiate = T, conf.int = T)
