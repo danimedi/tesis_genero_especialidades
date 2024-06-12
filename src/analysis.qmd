@@ -198,7 +198,7 @@ ggplot(x, aes(year, p_mujeres, color = reorder(especialidad, -p_mujeres))) +
 ggsave(here("output/graph_1-ingresantes.png"))
 ```
 
-# Tabla 1
+# Tabla: número de postulantes por variables
 
 ```{r}
 x <- dat[c("year2", "genero2", "ingreso", "especialidad_tipo", "subespecialidad", "region")]
@@ -216,26 +216,37 @@ x %>%
 tbl_summary()
 ```
 
-# Tablas 2 y 3
+# Tabla: Año de postulación vs. otras variables
 
 ```{r}
-x %>% 
+tab <- x %>% 
   tbl_summary(
     by = year2,
     label = list(genero2   ~ "Sexo"),                           
     missing_text = "Missing" 
-  ) %>%
-  add_p() %>%
-  add_overall()
-
-
-x %>% 
-  tbl_summary(by = genero2, missing_text = "Missing", percent = "row") %>%
-  add_p() %>%
-  add_overall()
+  ) %>% add_p() %>% add_overall() %>% as_gt()
+gt::gtsave(tab, here("output/table_year_vs_rest.html"))
 ```
 
-# Tabla 4
+# Tabla: Sexo vs. otras variables
+
+```{r}
+tab <- x %>% 
+  tbl_summary(by = genero2, missing_text = "Missing", percent = "row") %>%
+  add_p() %>% add_overall() %>% as_gt()
+gt::gtsave(tab, here("output/table_sex_vs_rest.html"))
+```
+
+# Tabla: Resultado de postulación (ingreso) vs. otras variables
+
+```{r}
+tab <- x %>% 
+  tbl_summary(by = ingreso, missing_text = "Missing", percent = "row") %>%
+  add_p() %>% add_overall() %>% as_gt()
+gt::gtsave(tab, here("output/table_application_result_vs_rest.html"))
+```
+
+# Tabla: Regresión logística de cada variable
 
 ```{r}
 x <- na.omit(x)
@@ -312,6 +323,7 @@ Primero realizaremos el modelo vacío
 
 ```{r}
 x <- dat[c("year2", "genero2", "ingreso", "especialidad", "especialidad_tipo", "region")]
+x$region <- relevel(x$region, ref = "Lima")
 
 # Vacío
 CIM_vacio <- glmer(
@@ -363,15 +375,6 @@ tab_model(
   file = here("output/model_full_output.html")
 )
 ```
-
-
-
-
-
-
-
-
-
 
 
 
