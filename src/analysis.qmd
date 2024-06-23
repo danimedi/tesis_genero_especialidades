@@ -223,8 +223,15 @@ tab <- x %>%
   tbl_summary(
     by = year2,
     label = list(genero2   ~ "Sexo"),                           
-    missing_text = "Missing" 
+    missing_text = "Missing",
+    digits = list(
+      genero2 ~ c(0, 1),
+      ingreso ~ c(0, 1),
+      especialidad_tipo ~ c(0, 1),
+      region ~ c(0, 1)
+    )
   ) %>% add_p() %>% add_overall() %>% as_gt()
+tab
 gt::gtsave(tab, here("output/table_year_vs_rest.html"))
 ```
 
@@ -232,8 +239,17 @@ gt::gtsave(tab, here("output/table_year_vs_rest.html"))
 
 ```{r}
 tab <- x %>% 
-  tbl_summary(by = genero2, missing_text = "Missing", percent = "row") %>%
+  tbl_summary(
+    by = genero2, missing_text = "Missing", percent = "row",
+    digits = list(
+      year2 ~ c(0, 1),
+      ingreso ~ c(0, 1),
+      especialidad_tipo ~ c(0, 1),
+      region ~ c(0, 1)
+    )
+  ) %>%
   add_p() %>% add_overall() %>% as_gt()
+tab
 gt::gtsave(tab, here("output/table_sex_vs_rest.html"))
 ```
 
@@ -241,15 +257,27 @@ gt::gtsave(tab, here("output/table_sex_vs_rest.html"))
 
 ```{r}
 tab <- x %>% 
-  tbl_summary(by = ingreso, missing_text = "Missing", percent = "row") %>%
+  tbl_summary(
+    by = ingreso, missing_text = "Missing", percent = "row",
+    digits = list(
+      year2 ~ c(0, 1),
+      genero2 ~ c(0, 1),
+      especialidad_tipo ~ c(0, 1),
+      region ~ c(0, 1)
+    )
+  ) %>%
   add_p() %>% add_overall() %>% as_gt()
+tab
 gt::gtsave(tab, here("output/table_application_result_vs_rest.html"))
 ```
 
 # Tabla: Regresión logística de cada variable
 
+Usando al resultado de postulación (ingreso) como variable de resultado ...
+
 ```{r}
 x <- na.omit(x)
+x$region <- relevel(x$region, "Lima")
 
 x %>%
   tbl_uvregression(
@@ -259,6 +287,22 @@ x %>%
     exponentiate = TRUE
   )
 ```
+
+Y usando a sexo como variable de resultado ...
+
+```{r}
+x <- na.omit(x)
+x$region <- relevel(x$region, "Lima")
+
+x %>%
+  tbl_uvregression(
+    method = glm,
+    y = genero2,
+    method.args = list(family = binomial),
+    exponentiate = TRUE
+  )
+```
+
 
 # Generalized linear mixed-effects models
 
@@ -332,12 +376,20 @@ CIM_vacio <- glmer(
   family = binomial(link = "logit")
 )
 
+saveRDS(CIM_vacio, here("output/model_CIM_vacio.rds"))
+
 tidy_robust(CIM_vacio, exponentiate = T, conf.int = T)
 tab_model(
   CIM_vacio,
   show.re.var = T, show.reflvl = T,
   file = here("output/model_empty_output.html")
 )
+
+# Log-Likelihood
+logLik(CIM_vacio)
+
+# AIC
+AIC(CIM_vacio)
 ```
 
 Posteriormente, realizaremos el modelo con variables a nivel individual
@@ -350,12 +402,20 @@ CIM_simple <- glmer(
   family = binomial(link = "logit") # Si no sale usar quasipoisson
 )
 
+saveRDS(CIM_simple, here("output/model_CIM_simple.rds"))
+
 tidy_robust(CIM_simple, exponentiate = T, conf.int = T)
 tab_model(
   CIM_simple,
   show.re.var = T, show.reflvl = T,
   file = here("output/model_simple_output.html")
 )
+
+# Log-Likelihood
+logLik(CIM_simple)
+
+# AIC
+AIC(CIM_simple)
 ```
 
 Finalmente, el modelo completo ...
@@ -368,12 +428,20 @@ CIM_completo <- glmer(
   family = binomial(link = "logit")
 )
 
+saveRDS(CIM_completo, here("output/model_CIM_completo.rds"))
+
 tidy_robust(CIM_completo, exponentiate = T, conf.int = T)
 tab_model(
   CIM_completo,
   show.re.var = T, show.reflvl = T,
   file = here("output/model_full_output.html")
 )
+
+# Log-Likelihood
+logLik(CIM_completo)
+
+# AIC
+AIC(CIM_completo)
 ```
 
 
