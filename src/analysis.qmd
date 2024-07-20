@@ -83,8 +83,839 @@ sum(dat$genero == 0, na.rm = TRUE) / sum(!is.na(dat$genero))
 Graficar la proporción de mujeres a lo largo del tiempo en la especialidades más grandes.
 
 ```{r}
+library(dplyr)
+library(ggplot2)
+
+n_por_espe <- dat %>% 
+  mutate(conteo=1) %>% 
+  group_by(especialidad) %>% 
+  dplyr::summarize(n = sum(conteo, na.rm = TRUE)) %>% filter(n>100)
+
+condicion <- unique(n_por_espe$especialidad)
+
+total_postulantes <- dat %>% filter(especialidad %in% condicion) %>% 
+  group_by(year2, especialidad) %>% 
+  dplyr::summarize(prop_postulantes = mean(genero, na.rm = TRUE))
+
+total_postulantes <- total_postulantes %>%
+  mutate(especialidad_abrev = case_when(
+    especialidad == "ADMINISTRACION Y GESTION EN SALUD" ~ "Admin. y Gestión en Salud",
+    especialidad == "ANATOMIA PATOLOGICA" ~ "Anatomía Patológica",
+    especialidad == "ANESTESIOLOGIA" ~ "Anestesiología",
+    especialidad == "CARDIOLOGIA" ~ "Cardiología",
+    especialidad == "CIRUGIA DE CABEZA, CUELLO Y MAXILOFACIAL" ~ "Cirugía de Cabeza",
+    especialidad == "CIRUGIA DE TORAX Y CARDIOVASCULAR" ~ "Cirugía de Tórax",
+    especialidad == "CIRUGIA GENERAL" ~ "Cirugía General",
+    especialidad == "CIRUGIA ONCOLOGICA" ~ "Cirugía Oncológica",
+    especialidad == "CIRUGIA PEDIATRICA" ~ "Cirugía Pediátrica",
+    especialidad == "CIRUGIA PLASTICA Y RECONSTRUCTIVA" ~ "Cirugía Plástica",
+    especialidad == "DERMATOLOGIA" ~ "Dermatología",
+    especialidad == "ENDOCRINOLOGIA" ~ "Endocrinología",
+    especialidad == "GASTROENTEROLOGIA" ~ "Gastroenterología",
+    especialidad == "GERIATRIA" ~ "Geriatría",
+    especialidad == "GINECOLOGIA ONCOLOGICA" ~ "Ginecología Oncológica",
+    especialidad == "GINECOLOGIA Y OBSTETRICIA" ~ "Ginecología y Obstetricia",
+    especialidad == "HEMATOLOGIA" ~ "Hematología",
+    especialidad == "MEDICINA DE EMERGENCIAS Y DESASTRES" ~ "Medicina de Emergencias",
+    especialidad == "MEDICINA DE ENFERMEDADES INFECCIOSAS Y TROPICALES" ~ "Infectología",
+    especialidad == "MEDICINA FAMILIAR Y COMUNITARIA" ~ "Medicina Familiar",
+    especialidad == "MEDICINA FISICA Y DE REHABILITACION" ~ "Medicina Física",
+    especialidad == "MEDICINA INTENSIVA" ~ "Medicina Intensiva",
+    especialidad == "MEDICINA INTERNA" ~ "Medicina Interna",
+    especialidad == "MEDICINA OCUPACIONAL Y DEL MEDIO AMBIENTE" ~ "Medicina Ocupacional",
+    especialidad == "MEDICINA ONCOLOGICA" ~ "Medicina Oncológica",
+    especialidad == "NEFROLOGIA" ~ "Nefrología",
+    especialidad == "NEONATOLOGIA" ~ "Neonatología",
+    especialidad == "NEUMOLOGIA" ~ "Neumología",
+    especialidad == "NEUROCIRUGIA" ~ "Neurocirugía",
+    especialidad == "NEUROLOGIA" ~ "Neurología",
+    especialidad == "NEUROLOGIA PEDIATRICA" ~ "Neurología Pediátrica",
+    especialidad == "OFTALMOLOGIA" ~ "Oftalmología",
+    especialidad == "ORTOPEDIA Y TRAUMATOLOGIA" ~ "Ortopedia y Traumatología",
+    especialidad == "OTORRINOLARINGOLOGIA" ~ "Otorrinolaringología",
+    especialidad == "PATOLOGIA CLINICA" ~ "Patología Clínica",
+    especialidad == "PEDIATRIA" ~ "Pediatría",
+    especialidad == "PSIQUIATRIA" ~ "Psiquiatría",
+    especialidad == "RADIOLOGIA" ~ "Radiología",
+    especialidad == "REUMATOLOGIA" ~ "Reumatología",
+    especialidad == "UROLOGIA" ~ "Urología",
+    TRUE ~ especialidad  # Mantener cualquier otro valor sin cambios
+  ))
+
+
+dat_unique <- dat %>%
+  select(especialidad, especialidad_tipo) %>%
+  distinct()
+
+# Unir las bases de datos sin crear duplicados
+base_f <- total_postulantes %>%
+  left_join(dat_unique, by = "especialidad") 
+
+base_f<- base_f %>% mutate(especialidad_tipo=case_when(
+          especialidad=="ADMINISTRACION Y GESTION EN SALUD"~"Otras",
+          especialidad=="GINECOLOGIA Y OBSTETRICIA"~"Ginecología y obstetrícia",
+          especialidad=="NEONATOLOGIA" | especialidad=="PEDIATRIA" ~"Neonatología y Pediatría", TRUE ~ especialidad_tipo),
+          
+          year3 = as.numeric(year2))
+
+base_f$especialidad_tipo <-base_f$especialidad_tipo %>% 
+                            factor(levels = c("clinica","medico_quirurgica", 
+                                               "quirurgica",
+                                              "Ginecología y obstetrícia",
+                                              "Neonatología y Pediatría",
+                                              "laboratorio_diagnostica","Otras"),
+                                    labels = c("Clinical", "Medical - surgical", 
+                                              "Surgical",
+                                              "Gynecology and Obstetrics",
+                                              "Neonatology and Pediatrics",
+                                              "Diagnostic or Laboratory",
+                                              "Others"))
+
+
+
+library(lme4)
+model_country_year <- lmer(
+  prop_postulantes ~ year3 + (1 + year3 | especialidad),
+  data = base_f)
+
+
+```
+
+
+```{r}
+# Gráfico de líneas con facetas por especialidad
+ggplot(total_postulantes, aes(x = year2, y = prop_postulantes, 
+                              group = especialidad)) +
+  geom_hline(yintercept = 0.5, color= "salmon", size= 1.2, alpha=0.7)+
+  geom_line(linewidth=1.5) +
+  geom_point(size=3) +
+  facet_wrap(~ especialidad_abrev, scales = "free_y") +
+  labs(x = NULL, y = NULL)+
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1,size = 14),
+        axis.text.y = element_text(size = 14),
+        strip.text = element_text(size = 12, face = "bold")) +
+  scale_y_continuous(labels = scales::percent_format(scale = 100), limits = c(0, 1), breaks = seq(0, 1, by = 0.25))
+```
+
+
+```{r}
+total_postulantes <- dat %>% filter(especialidad %in% condicion & 
+                                      ingreso == "Sí" ) %>% 
+  group_by(year2, especialidad) %>% 
+  dplyr::summarize(prop_postulantes = mean(genero, na.rm = TRUE))
+
+total_postulantes <- total_postulantes %>%
+  mutate(especialidad_abrev = case_when(
+    especialidad == "ADMINISTRACION Y GESTION EN SALUD" ~ "Admin. y Gestión en Salud",
+    especialidad == "ANATOMIA PATOLOGICA" ~ "Anatomía Patológica",
+    especialidad == "ANESTESIOLOGIA" ~ "Anestesiología",
+    especialidad == "CARDIOLOGIA" ~ "Cardiología",
+    especialidad == "CIRUGIA DE CABEZA, CUELLO Y MAXILOFACIAL" ~ "Cirugía de Cabeza",
+    especialidad == "CIRUGIA DE TORAX Y CARDIOVASCULAR" ~ "Cirugía de Tórax",
+    especialidad == "CIRUGIA GENERAL" ~ "Cirugía General",
+    especialidad == "CIRUGIA ONCOLOGICA" ~ "Cirugía Oncológica",
+    especialidad == "CIRUGIA PEDIATRICA" ~ "Cirugía Pediátrica",
+    especialidad == "CIRUGIA PLASTICA Y RECONSTRUCTIVA" ~ "Cirugía Plástica",
+    especialidad == "DERMATOLOGIA" ~ "Dermatología",
+    especialidad == "ENDOCRINOLOGIA" ~ "Endocrinología",
+    especialidad == "GASTROENTEROLOGIA" ~ "Gastroenterología",
+    especialidad == "GERIATRIA" ~ "Geriatría",
+    especialidad == "GINECOLOGIA ONCOLOGICA" ~ "Ginecología Oncológica",
+    especialidad == "GINECOLOGIA Y OBSTETRICIA" ~ "Ginecología y Obstetricia",
+    especialidad == "HEMATOLOGIA" ~ "Hematología",
+    especialidad == "MEDICINA DE EMERGENCIAS Y DESASTRES" ~ "Medicina de Emergencias",
+    especialidad == "MEDICINA DE ENFERMEDADES INFECCIOSAS Y TROPICALES" ~ "Infectología",
+    especialidad == "MEDICINA FAMILIAR Y COMUNITARIA" ~ "Medicina Familiar",
+    especialidad == "MEDICINA FISICA Y DE REHABILITACION" ~ "Medicina Física",
+    especialidad == "MEDICINA INTENSIVA" ~ "Medicina Intensiva",
+    especialidad == "MEDICINA INTERNA" ~ "Medicina Interna",
+    especialidad == "MEDICINA OCUPACIONAL Y DEL MEDIO AMBIENTE" ~ "Medicina Ocupacional",
+    especialidad == "MEDICINA ONCOLOGICA" ~ "Medicina Oncológica",
+    especialidad == "NEFROLOGIA" ~ "Nefrología",
+    especialidad == "NEONATOLOGIA" ~ "Neonatología",
+    especialidad == "NEUMOLOGIA" ~ "Neumología",
+    especialidad == "NEUROCIRUGIA" ~ "Neurocirugía",
+    especialidad == "NEUROLOGIA" ~ "Neurología",
+    especialidad == "NEUROLOGIA PEDIATRICA" ~ "Neurología Pediátrica",
+    especialidad == "OFTALMOLOGIA" ~ "Oftalmología",
+    especialidad == "ORTOPEDIA Y TRAUMATOLOGIA" ~ "Ortopedia y Traumatología",
+    especialidad == "OTORRINOLARINGOLOGIA" ~ "Otorrinolaringología",
+    especialidad == "PATOLOGIA CLINICA" ~ "Patología Clínica",
+    especialidad == "PEDIATRIA" ~ "Pediatría",
+    especialidad == "PSIQUIATRIA" ~ "Psiquiatría",
+    especialidad == "RADIOLOGIA" ~ "Radiología",
+    especialidad == "REUMATOLOGIA" ~ "Reumatología",
+    especialidad == "UROLOGIA" ~ "Urología",
+    TRUE ~ especialidad  # Mantener cualquier otro valor sin cambios
+  ))
+
+
+ggplot(total_postulantes, aes(x = year2, y = prop_postulantes, 
+                              group = especialidad)) +
+  geom_hline(yintercept = 0.5, color= "salmon", size= 1.2, alpha=0.7)+
+  geom_line(linewidth=1.5) +
+  geom_point(size=3) +
+  facet_wrap(~ especialidad_abrev, scales = "free_y") +
+  labs(x = NULL, y = NULL)+
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1,size = 14),
+        axis.text.y = element_text(size = 14),
+        strip.text = element_text(size = 12, face = "bold")) +
+  scale_y_continuous(labels = scales::percent_format(scale = 100), limits = c(0, 1), breaks = seq(0, 1, by = 0.25))
+
+postulantes <- dat %>% filter(especialidad %in% condicion) %>% 
+  group_by(especialidad) %>% 
+  dplyr::summarize(prop_postulantes = mean(genero, na.rm = TRUE))
+
+
+ingresantes <- dat %>% filter(especialidad %in% condicion & 
+                                      ingreso == "Sí" ) %>% 
+  group_by(especialidad) %>% 
+  dplyr::summarize(prop_ingresa = mean(genero, na.rm = TRUE))
+
+porcentaje <- left_join(postulantes, ingresantes, by = "especialidad")
+
+#writexl::write_xlsx(porcentaje, "porcentaje.xlsx")
+
+
+```
+
+
+# Modelo bayesiano para postulantes
+
+
+```{r}
+library(tidyverse)    # ggplot, dplyr, %>%, and friends
+library(gapminder)    # Country-year panel data from the Gapminder Project
+library(brms)         # Bayesian modeling through Stan
+library(tidybayes)    # Manipulate Stan objects in a tidy way
+library(broom)        # Convert model objects to data frames
+library(broom.mixed)  # Convert brms model objects to data frames
+library(emmeans)      # Calculate marginal effects in even fancier ways
+library(ggh4x)        # For nested facets in ggplot
+library(ggrepel)      # For nice non-overlapping labels in ggplot
+library(ggdist)       # For distribution-related ggplot geoms
+library(scales)       # For formatting numbers with comma(), dollar(), etc.
+library(patchwork)    # For combining plots
+library(ggokabeito)   # Colorblind-friendly color palette
+
+# Make all the random draws reproducible
+set.seed(1234)
+
+# Bayes stuff
+# Use the cmdstanr backend for Stan because it's faster and more modern than
+# the default rstan. You need to install the cmdstanr package first
+# (https://mc-stan.org/cmdstanr/) and then run cmdstanr::install_cmdstan() to
+# install cmdstan on your computer.
+options(mc.cores = 4,  # Use 4 cores
+        brms.backend = "cmdstanr")
+bayes_seed <- 1234
+
+# Custom ggplot theme to make pretty plots
+# Get Barlow Semi Condensed at https://fonts.google.com/specimen/Barlow+Semi+Condensed
+theme_clean <- function() {
+  theme_minimal(base_family = "Barlow Semi Condensed") +
+    theme(panel.grid.minor = element_blank(),
+          plot.background = element_rect(fill = "white", color = NA),
+          plot.title = element_text(face = "bold"),
+          axis.title = element_text(face = "bold"),
+          strip.text = element_text(face = "bold", size = rel(0.8), hjust = 0),
+          strip.background = element_rect(fill = "grey80", color = NA),
+          legend.title = element_text(face = "bold"))
+}
+
+# Make labels use Barlow by default
+update_geom_defaults("label_repel", 
+                     list(family = "Barlow Semi Condensed",
+                          fontface = "bold"))
+update_geom_defaults("label", 
+                     list(family = "Barlow Semi Condensed",
+                          fontface = "bold"))
+
+# The ggh4x paackage includes a `facet_nested()` function for nesting facets
+# (like countries in continents). Throughout this post, I want the
+# continent-level facets to use bolder text and a lighter gray strip. I don't
+# want to keep repeating all these settings, though, so I create a list of the
+# settings here with `strip_nested()` and feed it to `facet_nested_wrap()` later
+nested_settings <- strip_nested(
+  text_x = list(element_text(family = "Barlow Semi Condensed Black", 
+                             face = "plain"), NULL),
+  background_x = list(element_rect(fill = "grey92"), NULL),
+  by_layer_x = TRUE)
+
+
+
+library(lme4)
+model_country_year <- lmer(
+  prop_postulantes ~ year3 + (1 + year3 | especialidad),
+  data = base_f)
+
+base_f$year3<-base_f$year3-1
+
+model_country_year <- brm(
+  bf(prop_postulantes ~ year3 + (1 + year3 | especialidad)),
+  data = base_f,
+  chains = 4, seed = bayes_seed,
+  iter = 4000  # Double the number of iterations to help with convergence
+)
+
+tidy(model_country_year)
+
+tablita<- ranef(model_country_year)$especialidad %>%
+  as_tibble(rownames = "especialidad") %>% 
+  select(especialidad, starts_with("Estimate"))
+
+tablita<- coef(model_country_year)$especialidad %>%
+  as_tibble(rownames = "especialidad") %>% 
+  select(especialidad, starts_with("Estimate"))
+
+pred_model_country_year <- model_country_year %>%
+  epred_draws(newdata = expand_grid(especialidad = base_f$especialidad,
+                                    year3 = unique(base_f$year3)),
+              re_formula = NULL) %>% 
+  mutate(year = year3 + 2016) 
+
+promedio_epred <- pred_model_country_year %>%
+  group_by(especialidad, year3, year) %>%
+  summarize(.epred = mean(.epred, na.rm = TRUE)) %>% 
+  left_join(base_f, by = c("especialidad", "year3")) %>% 
+  filter(!is.na(especialidad_abrev))
+
+
+
+# Define el orden y los nombres abreviados de las especialidades
+orden_especialidades <- c(
+  "ORTOPEDIA Y TRAUMATOLOGIA", "UROLOGIA", "CIRUGIA DE TORAX Y CARDIOVASCULAR", 
+  "NEUROCIRUGIA", "GINECOLOGIA ONCOLOGICA", "CIRUGIA GENERAL", 
+  "CIRUGIA ONCOLOGICA", "CARDIOLOGIA", "CIRUGIA PLASTICA Y RECONSTRUCTIVA", 
+  "MEDICINA INTENSIVA", "CIRUGIA DE CABEZA, CUELLO Y MAXILOFACIAL", 
+  "MEDICINA DE ENFERMEDADES INFECCIOSAS Y TROPICALES", "NEUROLOGIA", 
+  "MEDICINA DE EMERGENCIAS Y DESASTRES", "RADIOLOGIA", "MEDICINA INTERNA", 
+  "GINECOLOGIA Y OBSTETRICIA", "NEUMOLOGIA", "NEFROLOGIA", "GASTROENTEROLOGIA", 
+  "OFTALMOLOGIA", "MEDICINA ONCOLOGICA", "MEDICINA OCUPACIONAL Y DEL MEDIO AMBIENTE", 
+  "OTORRINOLARINGOLOGIA", "REUMATOLOGIA", "ADMINISTRACION Y GESTION EN SALUD", 
+  "NEUROLOGIA PEDIATRICA", "ANESTESIOLOGIA", "NEONATOLOGIA", "CIRUGIA PEDIATRICA", 
+  "PSIQUIATRIA", "ENDOCRINOLOGIA", "MEDICINA FAMILIAR Y COMUNITARIA", "PEDIATRIA", 
+  "HEMATOLOGIA", "PATOLOGIA CLINICA", "GERIATRIA", "ANATOMIA PATOLOGICA", 
+  "DERMATOLOGIA", "MEDICINA FISICA Y DE REHABILITACION"
+)
+
+nombres_abreviados <- c(
+  "Orthopedics and Traumatology", "Urology", "Thoracic and CV Surgery", 
+  "Neurosurgery", "Gynecologic Oncology", "General Surgery", 
+  "Oncologic Surgery", "Cardiology", "Plastic Surgery", 
+  "Intensive Care Medicine", "Head Surgery", 
+  "Infectious and Tropical Medicine", "Neurology", 
+  "Emergency Medicine", "Radiology", "Internal Medicine", 
+  "Obstetrics and Gynecology", "Pulmonology", "Nephrology", "Gastroenterology", 
+  "Ophthalmology", "Oncologic Medicine", "Occupational and Environmental Medicine", 
+  "Otolaryngology", "Rheumatology", "Health Administration", 
+  "Pediatric Neurology", "Anesthesiology", "Neonatology", "Pediatric Surgery", 
+  "Psychiatry", "Endocrinology", "Family Medicine", "Pediatrics", 
+  "Hematology", "Clinical Pathology", "Geriatrics", "Pathological Anatomy", 
+  "Dermatology", "Physical Medicine"
+)
+
+nombres_abreviados <- c( "Ortho & Trauma", "Urology", "Thoracic & CV Surgery", 
+  "Neurosurgery", "Gynec. Oncology", "General Surgery", 
+  "Oncologic Surgery", "Cardiology", "Plastic Surgery", 
+  "Intensive Care Med.", "Head Surgery", 
+  "Infect. & Trop. Med.", "Neurology", 
+  "Emergency Med.", "Radiology", "Internal Med.", 
+  "Ob/Gyn", "Pulmonology", "Nephrology", "Gastroenterology", 
+  "Ophthalmology", "Oncologic Med.", "Occup. & Env. Med.", 
+  "Otolaryngology", "Rheumatology", "Health Admin.", 
+  "Pediatric Neurology", "Anesthesiology", "Neonatology", "Pediatric Surgery", 
+  "Psychiatry", "Endocrinology", "Family Med.", "Pediatrics", 
+  "Hematology", "Clinical Path.", "Geriatrics", "Pathological Anat.", 
+  "Dermatology", "Physical Med."
+)
+
+
+
+# Reordena la columna 'especialidad' en el dataframe 'promedio_epred'
+promedio_epred$especialidad <- factor(promedio_epred$especialidad, levels = orden_especialidades, labels = nombres_abreviados)
+
+
+
+estimate_intercept <- c(
+  0.57532082, 0.71118942, 0.58868104, 0.28007687, 0.37654679, 
+  0.18241184, 0.23435511, 0.25012520, 0.60309419, 0.31860760, 
+  0.71236169, 0.61889311, 0.47490279, 0.69730668, 0.22429461, 
+  0.44737182, 0.66013610, 0.42218925, 0.38674318, 0.62374388, 
+  0.71908135, 0.34495539, 0.42895303, 0.53485515, 0.51517684, 
+  0.47320299, 0.59868033, 0.46726612, 0.19396700, 0.40917142, 
+  0.58816113, 0.51333644, 0.08919999, 0.54079159, 0.66523513, 
+  0.63118797, 0.60844000, 0.42746333, 0.54515403, 0.16099171
+)
+
+estimate_year3 <- c(
+  0.0017994345, -0.0085115484, 0.0100205788, 0.0119980510, 0.0202413089, 
+  0.0116004354, 0.0166510235, 0.0136923881, 0.0174950230, 0.0022456680, 
+  0.0050839974, 0.0006330140, 0.0118901931, 0.0034426860, 0.0001821622, 
+  0.0181270501, -0.0064434138, 0.0040897965, 0.0170979293, -0.0062411047, 
+  0.0019440496, 0.0070925557, 0.0093998863, 0.0072634890, 0.0096321426, 
+  0.0066365465, 0.0180165340, 0.0131907919, 0.0110143565, 0.0152265920, 
+  -0.0068379021, 0.0101056441, 0.0120675477, 0.0117814414, 0.0105522960, 
+  0.0121455791, 0.0078517596, 0.0063658319, 0.0143637933, 0.0141929318
+)
+
+# Multiplica los valores por 100
+estimate_intercept <- estimate_intercept * 100
+estimate_year3 <- estimate_year3 * 100
+
+# Nombres abreviados
+nombres_abreviados <- c(
+  "Admin. Salud", "Anat. Patologica", "Anestesiologia", 
+  "Cardiologia", "Cirugia Cabeza", "Cirugia Torax y CV", 
+  "Cirugia General", "Cirugia Oncol.", "Cirugia Pediatrica", 
+  "Cirugia Plastica", "Dermatologia", "Endocrinologia", 
+  "Gastroenterologia", "Geriatria", "Ginec. Oncol.", 
+  "Ginec. Obst.", "Hematologia", "Med. Emergencias", 
+  "Med. Infec. Trop.", "Med. Familiar", 
+  "Med. Fisica", "Med. Intensiva", "Med. Interna", 
+  "Med. Ocup. Ambiental", "Med. Oncologica", "Nefrologia", 
+  "Neonatologia", "Neumologia", "Neurocirugia", "Neurologia", 
+  "Neurol. Pediatr.", "Oftalmologia", "Ortopedia y Traumatología", 
+  "Otorrinolaring.", "Pat. Clinica", "Pediatria", 
+  "Psiquiatria", "Radiologia", "Reumatologia", "Urologia"
+)
+
+nombres_abreviados <- c(
+  "Health Admin.", "Pathological Anat.", "Anesthesiology", 
+  "Cardiology", "Head Surgery", "Thoracic & CV Surgery", 
+  "General Surgery", "Oncologic Surgery", "Pediatric Surgery", 
+  "Plastic Surgery", "Dermatology", "Endocrinology", 
+  "Gastroenterology", "Geriatrics", "Gynec. Oncology", 
+  "Ob/Gyn", "Hematology", "Emergency Med.", 
+  "Infect. & Trop. Med.", "Family Med.", 
+  "Physical Med.", "Intensive Care Med.", "Internal Med.", 
+  "Occup. & Env. Med.", "Oncologic Med.", "Nephrology", 
+  "Neonatology", "Pulmonology", "Neurosurgery", "Neurology", 
+  "Pediatric Neurology", "Ophthalmology", "Ortho & Trauma", 
+  "Otolaryngology", "Clinical Path.", "Pediatrics", 
+  "Psychiatry", "Radiology", "Rheumatology", "Urology"
+)
+
+# Crear una ecuación lineal para cada especialidad abreviada
+ecuaciones <- paste0("Y = ", round(estimate_intercept, 1), " + ", round(estimate_year3, 1), "*Year")
+
+# Crear un dataframe con las ecuaciones
+df_ecuaciones <- data.frame(especialidad = nombres_abreviados, ecuacion = ecuaciones,estimate_intercept, estimate_year3)
+
+# Integrar las ecuaciones en la base de datos 'promedio_epred'
+promedio_epred2 <- merge(promedio_epred, df_ecuaciones, by.x = "especialidad", by.y = "especialidad", all.x = TRUE)
+
+
+
+plot1 <- ggplot(promedio_epred2, aes(x = year, y = .epred,color=ifelse(estimate_year3<0,"salmon","lightblue"))) +
+  geom_point(aes(y = prop_postulantes), 
+             color = "grey50", size = 3, alpha = 0.5) +
+  stat_lineribbon() +
+  scale_color_lancet(guide="none") +
+  labs(subtitle = NULL,
+       x = NULL, y = NULL) +
+  guides(fill = "none") +
+  facet_nested_wrap(vars(especialidad,ecuacion), nrow = 6) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1,size = 10),
+        axis.text.y = element_text(size = 12),
+        strip.text = element_text(size = 12, face = "bold"),
+        plot.background = element_rect(fill = "white", color = NA)) +
+  scale_y_continuous(limits = c(0.05,0.8),
+    labels = scales::percent_format(scale = 100))+
+  scale_x_continuous(breaks = seq(2016,2023,1))
+
+#remotes::install_github("idmn/ggview")
+library(ggview)
+
+ggview(units="px", height = 5800, width=9600, plot = plot1,dpi=600)
+ggview(units="px", height = 8600, width=8000, plot = plot1,dpi=600)
+
+library(patchwork)
+
+ggsave("plot.tiff",plot = plot1, units="px",  height = 8600, width=8000, dpi=600, compression = 'lzw')
+
+```
+
+# Modelo bayesiano para ingresantes
+
+```{r}
+library(dplyr)
+library(ggplot2)
+
+n_por_espe <- dat  %>%  filter(ingreso =="Sí")%>% 
+  mutate(conteo=1) %>% 
+  group_by(especialidad) %>% 
+  dplyr::summarize(n = sum(conteo, na.rm = TRUE)) %>% filter(n>100)
+
+condicion <- unique(n_por_espe$especialidad)
+
+total_postulantes <- dat %>% filter(especialidad %in% condicion) %>% 
+  group_by(year2, especialidad) %>% 
+  dplyr::summarize(prop_postulantes = mean(genero, na.rm = TRUE))
+
+total_postulantes <- total_postulantes %>%
+  mutate(especialidad_abrev = case_when(
+    especialidad == "ADMINISTRACION Y GESTION EN SALUD" ~ "Admin. y Gestión en Salud",
+    especialidad == "ANATOMIA PATOLOGICA" ~ "Anatomía Patológica",
+    especialidad == "ANESTESIOLOGIA" ~ "Anestesiología",
+    especialidad == "CARDIOLOGIA" ~ "Cardiología",
+    especialidad == "CIRUGIA DE CABEZA, CUELLO Y MAXILOFACIAL" ~ "Cirugía de Cabeza",
+    especialidad == "CIRUGIA DE TORAX Y CARDIOVASCULAR" ~ "Cirugía de Tórax",
+    especialidad == "CIRUGIA GENERAL" ~ "Cirugía General",
+    especialidad == "CIRUGIA ONCOLOGICA" ~ "Cirugía Oncológica",
+    especialidad == "CIRUGIA PEDIATRICA" ~ "Cirugía Pediátrica",
+    especialidad == "CIRUGIA PLASTICA Y RECONSTRUCTIVA" ~ "Cirugía Plástica",
+    especialidad == "DERMATOLOGIA" ~ "Dermatología",
+    especialidad == "ENDOCRINOLOGIA" ~ "Endocrinología",
+    especialidad == "GASTROENTEROLOGIA" ~ "Gastroenterología",
+    especialidad == "GERIATRIA" ~ "Geriatría",
+    especialidad == "GINECOLOGIA ONCOLOGICA" ~ "Ginecología Oncológica",
+    especialidad == "GINECOLOGIA Y OBSTETRICIA" ~ "Ginecología y Obstetricia",
+    especialidad == "HEMATOLOGIA" ~ "Hematología",
+    especialidad == "MEDICINA DE EMERGENCIAS Y DESASTRES" ~ "Medicina de Emergencias",
+    especialidad == "MEDICINA DE ENFERMEDADES INFECCIOSAS Y TROPICALES" ~ "Infectología",
+    especialidad == "MEDICINA FAMILIAR Y COMUNITARIA" ~ "Medicina Familiar",
+    especialidad == "MEDICINA FISICA Y DE REHABILITACION" ~ "Medicina Física",
+    especialidad == "MEDICINA INTENSIVA" ~ "Medicina Intensiva",
+    especialidad == "MEDICINA INTERNA" ~ "Medicina Interna",
+    especialidad == "MEDICINA OCUPACIONAL Y DEL MEDIO AMBIENTE" ~ "Medicina Ocupacional",
+    especialidad == "MEDICINA ONCOLOGICA" ~ "Medicina Oncológica",
+    especialidad == "NEFROLOGIA" ~ "Nefrología",
+    especialidad == "NEONATOLOGIA" ~ "Neonatología",
+    especialidad == "NEUMOLOGIA" ~ "Neumología",
+    especialidad == "NEUROCIRUGIA" ~ "Neurocirugía",
+    especialidad == "NEUROLOGIA" ~ "Neurología",
+    especialidad == "NEUROLOGIA PEDIATRICA" ~ "Neurología Pediátrica",
+    especialidad == "OFTALMOLOGIA" ~ "Oftalmología",
+    especialidad == "ORTOPEDIA Y TRAUMATOLOGIA" ~ "Ortopedia y Traumatología",
+    especialidad == "OTORRINOLARINGOLOGIA" ~ "Otorrinolaringología",
+    especialidad == "PATOLOGIA CLINICA" ~ "Patología Clínica",
+    especialidad == "PEDIATRIA" ~ "Pediatría",
+    especialidad == "PSIQUIATRIA" ~ "Psiquiatría",
+    especialidad == "RADIOLOGIA" ~ "Radiología",
+    especialidad == "REUMATOLOGIA" ~ "Reumatología",
+    especialidad == "UROLOGIA" ~ "Urología",
+    TRUE ~ especialidad  # Mantener cualquier otro valor sin cambios
+  ))
+
+
+dat_unique <- dat %>%
+  select(especialidad, especialidad_tipo) %>%
+  distinct()
+
+# Unir las bases de datos sin crear duplicados
+base_f <- total_postulantes %>%
+  left_join(dat_unique, by = "especialidad") 
+
+base_f<- base_f %>% mutate(especialidad_tipo=case_when(
+          especialidad=="ADMINISTRACION Y GESTION EN SALUD"~"Otras",
+          especialidad=="GINECOLOGIA Y OBSTETRICIA"~"Ginecología y obstetrícia",
+          especialidad=="NEONATOLOGIA" | especialidad=="PEDIATRIA" ~"Neonatología y Pediatría", TRUE ~ especialidad_tipo),
+          
+          year3 = as.numeric(year2))
+
+base_f$especialidad_tipo <-base_f$especialidad_tipo %>% 
+                            factor(levels = c("clinica","medico_quirurgica", 
+                                               "quirurgica",
+                                              "Ginecología y obstetrícia",
+                                              "Neonatología y Pediatría",
+                                              "laboratorio_diagnostica","Otras"),
+                                    labels = c("Clinical", "Medical - surgical", 
+                                              "Surgical",
+                                              "Gynecology and Obstetrics",
+                                              "Neonatology and Pediatrics",
+                                              "Diagnostic or Laboratory",
+                                              "Others"))
+
+
+
+library(lme4)
+model_country_year <- lmer(
+  prop_postulantes ~ year3 + (1 + year3 | especialidad),
+  data = base_f)
+
+
+```
+
+
+```{r}
+library(tidyverse)    # ggplot, dplyr, %>%, and friends
+library(gapminder)    # Country-year panel data from the Gapminder Project
+library(brms)         # Bayesian modeling through Stan
+library(tidybayes)    # Manipulate Stan objects in a tidy way
+library(broom)        # Convert model objects to data frames
+library(broom.mixed)  # Convert brms model objects to data frames
+library(emmeans)      # Calculate marginal effects in even fancier ways
+library(ggh4x)        # For nested facets in ggplot
+library(ggrepel)      # For nice non-overlapping labels in ggplot
+library(ggdist)       # For distribution-related ggplot geoms
+library(scales)       # For formatting numbers with comma(), dollar(), etc.
+library(patchwork)    # For combining plots
+library(ggokabeito)   # Colorblind-friendly color palette
+
+# Make all the random draws reproducible
+set.seed(1234)
+
+# Bayes stuff
+# Use the cmdstanr backend for Stan because it's faster and more modern than
+# the default rstan. You need to install the cmdstanr package first
+# (https://mc-stan.org/cmdstanr/) and then run cmdstanr::install_cmdstan() to
+# install cmdstan on your computer.
+options(mc.cores = 4,  # Use 4 cores
+        brms.backend = "cmdstanr")
+bayes_seed <- 1234
+
+# Custom ggplot theme to make pretty plots
+# Get Barlow Semi Condensed at https://fonts.google.com/specimen/Barlow+Semi+Condensed
+theme_clean <- function() {
+  theme_minimal(base_family = "Barlow Semi Condensed") +
+    theme(panel.grid.minor = element_blank(),
+          plot.background = element_rect(fill = "white", color = NA),
+          plot.title = element_text(face = "bold"),
+          axis.title = element_text(face = "bold"),
+          strip.text = element_text(face = "bold", size = rel(0.8), hjust = 0),
+          strip.background = element_rect(fill = "grey80", color = NA),
+          legend.title = element_text(face = "bold"))
+}
+
+# Make labels use Barlow by default
+update_geom_defaults("label_repel", 
+                     list(family = "Barlow Semi Condensed",
+                          fontface = "bold"))
+update_geom_defaults("label", 
+                     list(family = "Barlow Semi Condensed",
+                          fontface = "bold"))
+
+# The ggh4x paackage includes a `facet_nested()` function for nesting facets
+# (like countries in continents). Throughout this post, I want the
+# continent-level facets to use bolder text and a lighter gray strip. I don't
+# want to keep repeating all these settings, though, so I create a list of the
+# settings here with `strip_nested()` and feed it to `facet_nested_wrap()` later
+nested_settings <- strip_nested(
+  text_x = list(element_text(family = "Barlow Semi Condensed Black", 
+                             face = "plain"), NULL),
+  background_x = list(element_rect(fill = "grey92"), NULL),
+  by_layer_x = TRUE)
+
+
+
+library(lme4)
+
+model_country_year <- lmer(
+  prop_postulantes ~ year3 + (1 + year3 | especialidad),
+  data = base_f)
+
+base_f$year3<-base_f$year3-1
+
+model_country_year <- brm(
+  bf(prop_postulantes ~ year3 + (1 + year3 | especialidad)),
+  data = base_f,
+  chains = 4, seed = bayes_seed,
+  iter = 4000  # Double the number of iterations to help with convergence
+)
+
+tidy(model_country_year)
+
+tablita<- ranef(model_country_year)$especialidad %>%
+  as_tibble(rownames = "especialidad") %>% 
+  select(especialidad, starts_with("Estimate"))
+
+tablita<- coef(model_country_year)$especialidad %>%
+  as_tibble(rownames = "especialidad") %>% 
+  select(especialidad, starts_with("Estimate"))
+
+pred_model_country_year <- model_country_year %>%
+  epred_draws(newdata = expand_grid(especialidad = base_f$especialidad,
+                                    year3 = unique(base_f$year3)),
+              re_formula = NULL) %>% 
+  mutate(year = year3 + 2016) 
+
+promedio_epred <- pred_model_country_year %>%
+  group_by(especialidad, year3, year) %>%
+  summarize(.epred = mean(.epred, na.rm = TRUE)) %>% 
+  left_join(base_f, by = c("especialidad", "year3")) %>% 
+  filter(!is.na(especialidad_abrev))
+
+
+
+# Define el orden y los nombres abreviados de las especialidades
+orden_especialidades <- c(
+  "ORTOPEDIA Y TRAUMATOLOGIA", "UROLOGIA", "CIRUGIA DE TORAX Y CARDIOVASCULAR", 
+  "NEUROCIRUGIA",  "CIRUGIA GENERAL", 
+  "CIRUGIA ONCOLOGICA", "CARDIOLOGIA", "CIRUGIA PLASTICA Y RECONSTRUCTIVA", 
+  "MEDICINA INTENSIVA", "CIRUGIA DE CABEZA, CUELLO Y MAXILOFACIAL", 
+  "MEDICINA DE ENFERMEDADES INFECCIOSAS Y TROPICALES", "NEUROLOGIA", 
+  "MEDICINA DE EMERGENCIAS Y DESASTRES", "RADIOLOGIA", "MEDICINA INTERNA", 
+  "GINECOLOGIA Y OBSTETRICIA", "NEUMOLOGIA", "NEFROLOGIA", "GASTROENTEROLOGIA", 
+  "OFTALMOLOGIA", "MEDICINA ONCOLOGICA", 
+  "OTORRINOLARINGOLOGIA", "REUMATOLOGIA", "ADMINISTRACION Y GESTION EN SALUD", 
+  "ANESTESIOLOGIA", "NEONATOLOGIA", "CIRUGIA PEDIATRICA", 
+  "PSIQUIATRIA", "ENDOCRINOLOGIA", "MEDICINA FAMILIAR Y COMUNITARIA", "PEDIATRIA", 
+  "HEMATOLOGIA", "PATOLOGIA CLINICA", "GERIATRIA", "ANATOMIA PATOLOGICA", 
+  "DERMATOLOGIA", "MEDICINA FISICA Y DE REHABILITACION"
+)
+
+nombres_abreviados <- c(
+  "Orthopedics and Traumatology", "Urology", "Thoracic and CV Surgery", 
+  "Neurosurgery",  "General Surgery", 
+  "Oncologic Surgery", "Cardiology", "Plastic Surgery", 
+  "Intensive Care Medicine", "Head Surgery", 
+  "Infectious and Tropical Medicine", "Neurology", 
+  "Emergency Medicine", "Radiology", "Internal Medicine", 
+  "Obstetrics and Gynecology", "Pulmonology", "Nephrology", "Gastroenterology", 
+  "Ophthalmology", "Oncologic Medicine", 
+  "Otolaryngology", "Rheumatology", "Health Administration", 
+   "Anesthesiology", "Neonatology", "Pediatric Surgery", 
+  "Psychiatry", "Endocrinology", "Family Medicine", "Pediatrics", 
+  "Hematology", "Clinical Pathology", "Geriatrics", "Pathological Anatomy", 
+  "Dermatology", "Physical Medicine"
+)
+
+nombres_abreviados <- c( "Ortho & Trauma", "Urology", "Thoracic & CV Surgery", 
+  "Neurosurgery", "General Surgery", 
+  "Oncologic Surgery", "Cardiology", "Plastic Surgery", 
+  "Intensive Care Med.", "Head Surgery", 
+  "Infect. & Trop. Med.", "Neurology", 
+  "Emergency Med.", "Radiology", "Internal Med.", 
+  "Ob/Gyn", "Pulmonology", "Nephrology", "Gastroenterology", 
+  "Ophthalmology", "Oncologic Med.",  
+  "Otolaryngology", "Rheumatology", "Health Admin.", 
+   "Anesthesiology", "Neonatology", "Pediatric Surgery", 
+  "Psychiatry", "Endocrinology", "Family Med.", "Pediatrics", 
+  "Hematology", "Clinical Path.", "Geriatrics", "Pathological Anat.", 
+  "Dermatology", "Physical Med."
+)
+
+
+
+# Reordena la columna 'especialidad' en el dataframe 'promedio_epred'
+promedio_epred$especialidad <- factor(promedio_epred$especialidad, levels = orden_especialidades, labels = nombres_abreviados)
+
+
+
+estimate_intercept <- c(
+  0.57403540, 0.71190277, 0.58731551, 
+  0.27646855, 0.37289209, 0.17736414, 
+  0.23002437, 0.24588680, 0.60106556, 
+  0.31577851, 0.71187460, 0.61844783, 
+  0.47279121, 0.69703868, 0.44420638, 
+  0.66025907, 0.42003285, 
+  0.38361201, 0.62393918, 
+  0.71910008, 0.34144235, 
+  0.42642337, 0.51288857, 0.47131875, 
+  0.59725505, 0.46526510, 0.18935963, 0.40669733, 
+  0.51186700, 0.08365433, 0.53886234, 
+  0.66464303, 0.63004897, 0.60662915, 0.42501056, 
+  0.54335607, 0.15609779
+)
+
+# Valores para estimate_year3
+estimate_year3 <- c(
+  0.002175170, -0.008448419, 0.010465718, 
+  0.013117845, 0.021172963, 0.012872966, 
+  0.017708405, 0.014838758, 0.017961174, 
+  0.003117308, 0.005259262, 0.000903328, 
+  0.012553370, 0.003614236, 0.018914427, 
+  -0.006283503, 0.004847136, 
+  0.017892120, -0.006040336, 
+  0.001999427, 0.008021704, 
+  0.010023572, 0.010292372, 0.007288249, 
+  0.018507466, 0.013888137, 0.012299852, 0.016058231, 
+  0.010632272, 0.013344644, 0.012295127, 
+  0.010823787, 0.012542568, 0.008273762, 0.007108821, 
+  0.014920158, 0.015412513
+)
+
+# Multiplica los valores por 100
+estimate_intercept <- estimate_intercept * 100
+estimate_year3 <- estimate_year3 * 100
+
+# Nombres abreviados
+nombres_abreviados <- c(
+  "Admin. Salud", "Anat. Patologica", "Anestesiologia", 
+  "Cardiologia", "Cirugia Cabeza", "Cirugia Torax y CV", 
+  "Cirugia General", "Cirugia Oncol.", "Cirugia Pediatrica", 
+  "Cirugia Plastica", "Dermatologia", "Endocrinologia", 
+  "Gastroenterologia", "Geriatria", "Ginec. Oncol.", 
+  "Ginec. Obst.", "Hematologia", "Med. Emergencias", 
+  "Med. Infec. Trop.", "Med. Familiar", 
+  "Med. Fisica", "Med. Intensiva", "Med. Interna", 
+   "Med. Oncologica", "Nefrologia", 
+  "Neonatologia", "Neumologia", "Neurocirugia", "Neurologia", 
+   "Oftalmologia", "Ortopedia y Traumatología", 
+  "Otorrinolaring.", "Pat. Clinica", "Pediatria", 
+  "Psiquiatria", "Radiologia", "Reumatologia", "Urologia"
+)
+
+nombres_abreviados <- c(
+  "Health Admin.", "Pathological Anat.", "Anesthesiology", 
+  "Cardiology", "Head Surgery", "Thoracic & CV Surgery", 
+  "General Surgery", "Oncologic Surgery", "Pediatric Surgery", 
+  "Plastic Surgery", "Dermatology", "Endocrinology", 
+  "Gastroenterology", "Geriatrics",  
+  "Ob/Gyn", "Hematology", "Emergency Med.", 
+  "Infect. & Trop. Med.", "Family Med.", 
+  "Physical Med.", "Intensive Care Med.", "Internal Med.", 
+  "Oncologic Med.", "Nephrology", 
+  "Neonatology", "Pulmonology", "Neurosurgery", "Neurology", 
+  "Ophthalmology", "Ortho & Trauma", 
+  "Otolaryngology", "Clinical Path.", "Pediatrics", 
+  "Psychiatry", "Radiology", "Rheumatology", "Urology"
+)
+
+# Crear una ecuación lineal para cada especialidad abreviada
+ecuaciones <- paste0("Y = ", round(estimate_intercept, 1), " + ", round(estimate_year3, 1), "*Year")
+
+# Crear un dataframe con las ecuaciones
+df_ecuaciones <- data.frame(especialidad = nombres_abreviados, ecuacion = ecuaciones,estimate_intercept, estimate_year3)
+
+# Integrar las ecuaciones en la base de datos 'promedio_epred'
+promedio_epred2 <- merge(promedio_epred, df_ecuaciones, by.x = "especialidad", by.y = "especialidad", all.x = TRUE)
+
+
+
+
+plot1 <- ggplot(promedio_epred2, aes(x = year, y = .epred,color=ifelse(estimate_year3<0,"salmon","lightblue"))) +
+  geom_point(aes(y = prop_postulantes), 
+             color = "grey50", size = 3, alpha = 0.5) +
+  stat_lineribbon() +
+  scale_color_lancet(guide="none") +
+  labs(subtitle = NULL,
+       x = NULL, y = NULL) +
+  guides(fill = "none") +
+  facet_nested_wrap(vars(especialidad,ecuacion), nrow = 6) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1,size = 10),
+        axis.text.y = element_text(size = 12),
+        strip.text = element_text(size = 12, face = "bold"),
+        plot.background = element_rect(fill = "white", color = NA)) +
+  scale_y_continuous(limits = c(0.05,0.8),
+    labels = scales::percent_format(scale = 100))+
+  scale_x_continuous(breaks = seq(2016,2023,1))
+
+#remotes::install_github("idmn/ggview")
+library(ggview)
+
+ggview(units="px", height = 5800, width=9600, plot = plot1,dpi=600)
+ggview(units="px", height = 8600, width=8000, plot = plot1,dpi=600)
+
+library(patchwork)
+
+ggsave("plot2.tiff",plot = plot1, units="px",  height = 8600, width=8000, dpi=600, compression = 'lzw')
+
+```
+
+
+
+
+
+
+```{r}
 # Filter the specialties with most applicants 
-j <- sort(table(dat$especialidad), decreasing = TRUE)[1:10]
+j <- sort(table(dat$especialidad), decreasing = TRUE)[1:20]
 j <- names(j)
 x <- dat[dat$especialidad %in% j, ]
 
@@ -223,15 +1054,8 @@ tab <- x %>%
   tbl_summary(
     by = year2,
     label = list(genero2   ~ "Sexo"),                           
-    missing_text = "Missing",
-    digits = list(
-      genero2 ~ c(0, 1),
-      ingreso ~ c(0, 1),
-      especialidad_tipo ~ c(0, 1),
-      region ~ c(0, 1)
-    )
+    missing_text = "Missing" 
   ) %>% add_p() %>% add_overall() %>% as_gt()
-tab
 gt::gtsave(tab, here("output/table_year_vs_rest.html"))
 ```
 
@@ -239,17 +1063,8 @@ gt::gtsave(tab, here("output/table_year_vs_rest.html"))
 
 ```{r}
 tab <- x %>% 
-  tbl_summary(
-    by = genero2, missing_text = "Missing", percent = "row",
-    digits = list(
-      year2 ~ c(0, 1),
-      ingreso ~ c(0, 1),
-      especialidad_tipo ~ c(0, 1),
-      region ~ c(0, 1)
-    )
-  ) %>%
+  tbl_summary(by = genero2, missing_text = "Missing", percent = "row") %>%
   add_p() %>% add_overall() %>% as_gt()
-tab
 gt::gtsave(tab, here("output/table_sex_vs_rest.html"))
 ```
 
@@ -257,27 +1072,15 @@ gt::gtsave(tab, here("output/table_sex_vs_rest.html"))
 
 ```{r}
 tab <- x %>% 
-  tbl_summary(
-    by = ingreso, missing_text = "Missing", percent = "row",
-    digits = list(
-      year2 ~ c(0, 1),
-      genero2 ~ c(0, 1),
-      especialidad_tipo ~ c(0, 1),
-      region ~ c(0, 1)
-    )
-  ) %>%
+  tbl_summary(by = ingreso, missing_text = "Missing", percent = "row") %>%
   add_p() %>% add_overall() %>% as_gt()
-tab
 gt::gtsave(tab, here("output/table_application_result_vs_rest.html"))
 ```
 
 # Tabla: Regresión logística de cada variable
 
-Usando al resultado de postulación (ingreso) como variable de resultado ...
-
 ```{r}
 x <- na.omit(x)
-x$region <- relevel(x$region, "Lima")
 
 x %>%
   tbl_uvregression(
@@ -287,22 +1090,6 @@ x %>%
     exponentiate = TRUE
   )
 ```
-
-Y usando a sexo como variable de resultado ...
-
-```{r}
-x <- na.omit(x)
-x$region <- relevel(x$region, "Lima")
-
-x %>%
-  tbl_uvregression(
-    method = glm,
-    y = genero2,
-    method.args = list(family = binomial),
-    exponentiate = TRUE
-  )
-```
-
 
 # Generalized linear mixed-effects models
 
@@ -376,20 +1163,12 @@ CIM_vacio <- glmer(
   family = binomial(link = "logit")
 )
 
-saveRDS(CIM_vacio, here("output/model_CIM_vacio.rds"))
-
 tidy_robust(CIM_vacio, exponentiate = T, conf.int = T)
 tab_model(
   CIM_vacio,
   show.re.var = T, show.reflvl = T,
   file = here("output/model_empty_output.html")
 )
-
-# Log-Likelihood
-logLik(CIM_vacio)
-
-# AIC
-AIC(CIM_vacio)
 ```
 
 Posteriormente, realizaremos el modelo con variables a nivel individual
@@ -402,20 +1181,12 @@ CIM_simple <- glmer(
   family = binomial(link = "logit") # Si no sale usar quasipoisson
 )
 
-saveRDS(CIM_simple, here("output/model_CIM_simple.rds"))
-
 tidy_robust(CIM_simple, exponentiate = T, conf.int = T)
 tab_model(
   CIM_simple,
   show.re.var = T, show.reflvl = T,
   file = here("output/model_simple_output.html")
 )
-
-# Log-Likelihood
-logLik(CIM_simple)
-
-# AIC
-AIC(CIM_simple)
 ```
 
 Finalmente, el modelo completo ...
@@ -428,20 +1199,12 @@ CIM_completo <- glmer(
   family = binomial(link = "logit")
 )
 
-saveRDS(CIM_completo, here("output/model_CIM_completo.rds"))
-
 tidy_robust(CIM_completo, exponentiate = T, conf.int = T)
 tab_model(
   CIM_completo,
   show.re.var = T, show.reflvl = T,
   file = here("output/model_full_output.html")
 )
-
-# Log-Likelihood
-logLik(CIM_completo)
-
-# AIC
-AIC(CIM_completo)
 ```
 
 
